@@ -1,0 +1,139 @@
+import { useState, useCallback } from 'react';
+import { postMessage } from '../vscode';
+import { ageLabel, reviewDecisionLabel, isReviewInProgress } from '../utils';
+import type { GhPullRequest } from '../types';
+
+interface Props {
+  allPrs: GhPullRequest[];
+  isLoading: boolean;
+  errorMessage: string;
+  needsReviewFilterActive: boolean;
+  selectedPrNumber: number | null;
+}
+
+type Bucket = 'unreviewed' | 'in-review' | 'approved';
+
+function classifyPr(pr: GhPullRequest): Bucket {
+  if (pr.reviewDecision === 'APPROVED') return 'approved';
+  if (isReviewInProgress(pr) || pr.reviewDecision === 'CHANGES_REQUESTED') return 'in-review';
+  return 'unreviewed';
+}
+
+const byNewest = (a: GhPullRequest, b: GhPullRequest) =>
+  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+
+const BUCKETS: { key: Bucket; label: string }[] = [
+  { key: 'unreviewed', label: 'Unreviewed' },
+  { key: 'in-review',  label: 'In review' },
+  { key: 'approved',   label: 'Approved' },
+];
+
+export function QueuePane({ allPrs, isLoading, errorMessage, needsReviewFilterActive, selectedPrNumber }: Props) {
+  const [search, setSearch] = useState('');
+  const [collapsed, setCollapsed] = useState<Record<Bucket, boolean>>({
+    'unreviewed': false,
+    'in-review': false,
+    'approved': false,
+  });
+  const toggleBucket = useCallback((key: Bucket) => {
+    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const searchLower = search.toLowerCase();
+  const matchesSearch = (pr: GhPullRequest) =>
+    !search || `#${pr.number} ${pr.title} ${pr.author.login}`.toLowerCase().includes(searchLower);
+
+  const visible = needsReviewFilterActive
+    ? allPrs.filter((pr) => classifyPr(pr) === 'unreviewed')
+    : allPrs;
+
+  const total = visible.length;
+  const buckets = BUCKETS.map(({ key, label }) => ({
+    key,
+    label,
+    prs: visible.filter((pr) => classifyPr(pr) === key && matchesSearch(pr)).sort(byNewest),
+  }));
+  const totalFiltered = buckets.reduce((n, b) => n + b.prs.length, 0);
+
+  if (isLoading) {
+    return <div className="status loading"><span className="spin">⟳</span> Loading PRs…</div>;
+  }
+  if (errorMessage) {
+    return <div className="status error"><div>✕</div><div>{errorMessage}</div></div>;
+  }
+
+  return (
+    <>
+      <div className="toolbar">
+        <span className="count">
+          {search ? `${totalFiltered} / ${total}` : `${total}`} PR{total === 1 ? '' : 's'}
+        </span>
+        <input
+          className="search-input"
+          type="text"
+          placeholder="Filter…"
+          autoComplete="off"
+          spellCheck={false}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <button
+          className={`filter-btn${needsReviewFilterActive ? ' active' : ''}`}
+          title={needsReviewFilterActive ? 'Click to show all PRs' : 'Click to show only PRs that need a review'}
+          onClick={() => postMessage({ type: 'toggleFilter' })}
+        >
+          {needsReviewFilterActive ? '⊘ Unreviewed only' : '⊙ All PRs'}
+        </button>
+      </div>
+
+      {totalFiltered === 0 ? (
+        <div className="status empty">
+          {needsReviewFilterActive ? 'No unreviewed PRs' : 'No open PRs for your teams'}
+        </div>
+      ) : (
+        <div className="pr-list">
+          {buckets.map(({ key, label, prs }) =>
+            prs.length === 0 ? null : (
+              <div key={key} className="pr-bucket">
+                <div
+                  className="pr-bucket-header"
+                  onClick={() => toggleBucket(key)}
+                  role="button"
+                  aria-expanded={!collapsed[key]}
+                >
+                  <span className="pr-bucket-chevron">{collapsed[key] ? '▶' : '▼'}</span>
+                  {label}
+                  <span className="pr-bucket-count">{prs.length}</span>
+                </div>
+                {!collapsed[key] && prs.map((pr) => (
+                  <PrCard key={pr.number} pr={pr} selected={pr.number === selectedPrNumber} />
+                ))}
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function PrCard({ pr, selected }: { pr: GhPullRequest; selected: boolean }) {
+  const rdClass = `rd-${(pr.reviewDecision || 'none').toLowerCase()}`;
+  const inProgress = isReviewInProgress(pr);
+
+  return (
+    <div
+      className={`pr-card${selected ? ' selected' : ''}`}
+      onClick={() => postMessage({ type: 'selectPR', prNumber: pr.number })}
+    >
+      <div className="pr-title">
+        <span className="pr-num">#{pr.number}</span> {pr.title}
+      </div>
+      <div className="pr-bottom-row">
+        <span className="age">{ageLabel(pr.createdAt)} - @{pr.author.login}</span>
+        {inProgress && <span className="in-progress-badge">⚡ In review</span>}
+        {!inProgress && <span className={`rd ${rdClass}`}>{reviewDecisionLabel(pr.reviewDecision)}</span>}
+      </div>
+    </div>
+  );
+}

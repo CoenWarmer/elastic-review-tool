@@ -296,6 +296,7 @@ export async function suggestReviewOrder(
   const allPaths = new Set(files.map((f) => f.path));
 
   log(`[ReviewOrder] Prompt length: ${prompt.length} chars`);
+  log(`[ReviewOrder] Prompt:\n${prompt}`);
 
   // ── 1. Try vscode.lm (GitHub Copilot, Cursor built-in, or any registered provider) ──
   const lmModel = await selectVscodeLmModel();

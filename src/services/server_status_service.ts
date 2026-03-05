@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import * as net from 'net';
+import * as http from 'http';
 
-export type ServerStatus = 'running' | 'stopped';
+export type ServerStatus = 'running' | 'starting' | 'stopped';
 
 export interface ServerState {
   es: ServerStatus;
@@ -16,10 +17,36 @@ function isPortOpen(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = new net.Socket();
     socket.setTimeout(1500);
-    socket.on('connect', () => { socket.destroy(); resolve(true); });
-    socket.on('timeout', () => { socket.destroy(); resolve(false); });
+    socket.on('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on('timeout', () => {
+      socket.destroy();
+      resolve(false);
+    });
     socket.on('error', () => resolve(false));
     socket.connect(port, '127.0.0.1');
+  });
+}
+
+/**
+ * Makes an HTTP GET request to the Kibana status API.
+ * Returns true only when Kibana responds with HTTP 2xx or 3xx — meaning the
+ * server is fully up and serving requests (not just the basepath proxy).
+ */
+function isKibanaReady(baseUrl: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const url = `${baseUrl}/api/status`;
+    const req = http.get(url, { timeout: 2000 }, (res) => {
+      res.resume(); // drain body
+      resolve((res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 400);
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
   });
 }
 
@@ -34,6 +61,8 @@ export class ServerStatusService {
 
   private readonly _onStatusChange = new vscode.EventEmitter<ServerState>();
   readonly onStatusChange = this._onStatusChange.event;
+
+  constructor(private readonly kibanaBaseUrl: string = 'http://127.0.0.1:5601/kibana') {}
 
   startPolling(): void {
     void this.poll();
@@ -75,8 +104,18 @@ export class ServerStatusService {
       isPortOpen(ES_PORT),
       isPortOpen(KIBANA_PORT),
     ]);
+
     const newEs: ServerStatus = esOpen ? 'running' : 'stopped';
-    const newKibana: ServerStatus = kibanaOpen ? 'running' : 'stopped';
+
+    let newKibana: ServerStatus;
+    if (!kibanaOpen) {
+      newKibana = 'stopped';
+    } else {
+      // Port is open (basepath proxy is up) but we need to confirm the actual
+      // Kibana HTTP server is ready before showing green.
+      newKibana = (await isKibanaReady(this.kibanaBaseUrl)) ? 'running' : 'starting';
+    }
+
     if (newEs !== this.esStatus || newKibana !== this.kibanaStatus) {
       this.esStatus = newEs;
       this.kibanaStatus = newKibana;

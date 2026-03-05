@@ -80,7 +80,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(statusBarItem);
 
   // ─── Providers ─────────────────────────────────────────────────────────────
-  const prPanelProvider = new PrPanelProvider(githubService, codeOwnersService);
+  const prPanelProvider = new PrPanelProvider(githubService, codeOwnersService, context.extensionUri);
   const changedFilesProvider = prPanelProvider; // unified panel
 
   context.subscriptions.push(
@@ -93,7 +93,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // ─── Dev server status ─────────────────────────────────────────────────────
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
-  const serverStatusService = new ServerStatusService();
+  const serverStatusService = new ServerStatusService(getKibanaDevUrl(workspaceRoot));
 
   serverStatusService.onStatusChange((state) => {
     prPanelProvider.updateServerStatus(state.es, state.kibana);
@@ -144,6 +144,40 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const url = getKibanaDevUrl(workspaceRoot);
     log(`Opening Kibana at ${url}`);
     void vscode.commands.executeCommand('simpleBrowser.show', url);
+  };
+
+  // ─── Synthtrace ────────────────────────────────────────────────────────────
+  const SYNTHTRACE_SCENARIOS_DIR = path.join(
+    workspaceRoot,
+    'src/platform/packages/shared/kbn-synthtrace/src/scenarios'
+  );
+
+  function loadSynthtraceScenarios(): string[] {
+    try {
+      return fs
+        .readdirSync(SYNTHTRACE_SCENARIOS_DIR)
+        .filter((f) => f.endsWith('.ts') || f.endsWith('.js'))
+        .sort();
+    } catch {
+      return [];
+    }
+  }
+
+  prPanelProvider.setSynthtraceScenarios(loadSynthtraceScenarios());
+
+  prPanelProvider.onRefreshScenarios = () => {
+    prPanelProvider.setSynthtraceScenarios(loadSynthtraceScenarios());
+  };
+
+  prPanelProvider.onRunSynthtrace = (scenario: string, live: boolean) => {
+    const cmd = `node scripts/synthtrace.js ${scenario}${live ? ' --live' : ''}`;
+    log(`[Synthtrace] Running: ${cmd}`);
+    const terminal = vscode.window.createTerminal({
+      name: 'Synthtrace',
+      cwd: workspaceRoot,
+    });
+    terminal.show(true);
+    terminal.sendText(cmd);
   };
 
   // Wire up checkout button in panel → checkout command

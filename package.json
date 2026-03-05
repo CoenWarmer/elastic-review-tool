@@ -7,8 +7,12 @@
   "engines": {
     "vscode": "^1.90.0"
   },
-  "categories": ["Other"],
-  "activationEvents": ["onStartupFinished"],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -189,13 +193,19 @@
         },
         "kibana-pr-reviewer.userTeams": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "description": "Override GitHub team detection. Use @elastic/team-name format (e.g. [\"@elastic/kibana-core\"]). Leave empty for auto-detection."
         },
         "kibana-pr-reviewer.llmProvider": {
           "type": "string",
-          "enum": ["none", "openai", "anthropic"],
+          "enum": [
+            "none",
+            "openai",
+            "anthropic"
+          ],
           "default": "none",
           "description": "LLM provider for intelligent file ordering. Use 'none' to rely on heuristics only."
         },
@@ -221,17 +231,25 @@
     "compile": "node esbuild.js",
     "watch": "node esbuild.js --watch",
     "package": "vsce package --no-dependencies",
-    "lint": "eslint src --ext ts"
+    "lint": "eslint src --ext ts",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\""
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@types/vscode": "^1.90.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "@vscode/vsce": "^3.0.0",
     "esbuild": "^0.24.0",
     "eslint": "^9.0.0",
-    "typescript": "^5.6.0",
-    "@vscode/vsce": "^3.0.0"
+    "prettier": "^3.8.1",
+    "typescript": "^5.6.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  }
 }

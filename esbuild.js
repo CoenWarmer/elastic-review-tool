@@ -3,7 +3,7 @@ const esbuild = require('esbuild');
 const isWatch = process.argv.includes('--watch');
 
 /** @type {import('esbuild').BuildOptions} */
-const buildOptions = {
+const extensionOptions = {
   entryPoints: ['src/extension.ts'],
   bundle: true,
   outfile: 'dist/extension.js',
@@ -15,13 +15,31 @@ const buildOptions = {
   minify: false,
 };
 
+/** @type {import('esbuild').BuildOptions} */
+const webviewOptions = {
+  entryPoints: ['src/webview/index.tsx'],
+  bundle: true,
+  outfile: 'dist/webview.js',
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2020',
+  sourcemap: true,
+  minify: false,
+  jsx: 'automatic',
+};
+
 if (isWatch) {
-  esbuild.context(buildOptions).then((ctx) => {
-    ctx.watch();
-    console.log('[esbuild] Watching for changes...');
+  Promise.all([
+    esbuild.context(extensionOptions).then((ctx) => ctx.watch()),
+    esbuild.context(webviewOptions).then((ctx) => ctx.watch()),
+  ]).then(() => {
+    console.log('[esbuild] Watching for changes…');
   });
 } else {
-  esbuild.build(buildOptions).then(() => {
+  Promise.all([
+    esbuild.build(extensionOptions),
+    esbuild.build(webviewOptions),
+  ]).then(() => {
     console.log('[esbuild] Build complete.');
   }).catch(() => process.exit(1));
 }
