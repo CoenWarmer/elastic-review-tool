@@ -72,8 +72,8 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
   }
 
   // ─── Dev server status ──────────────────────────────────────────────────────
-  private esStatus: 'running' | 'stopped' = 'stopped';
-  private kibanaStatus: 'running' | 'stopped' = 'stopped';
+  private esStatus: 'running' | 'starting' | 'stopped' = 'stopped';
+  private kibanaStatus: 'running' | 'starting' | 'stopped' = 'stopped';
 
   // ─── Synthtrace ──────────────────────────────────────────────────────────────
   private synthtraceScenarios: string[] = [];

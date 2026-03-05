@@ -10,7 +10,7 @@ import { suggestReviewOrder } from './services/review_order_service';
 import { PrPanelProvider } from './providers/pr_panel_provider';
 import { checkoutPR, loadPRData, disposeTerminal } from './commands/checkout_pr';
 import { openDiff, GitBaseContentProvider } from './commands/open_diff';
-import { initLogger, log, showLog } from './logger';
+import { initLogger, log, logError } from './logger';
 
 /**
  * Reads `config/kibana.dev.yml` and returns the URL of the local dev server.
@@ -271,7 +271,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await loadCommentThreads(prNumber, baseCommit);
       log(`[refreshFilesAndComments] Done — ${ordered.length} file(s), comments reloaded`);
     } catch (err) {
-      log(`[refreshFilesAndComments] Failed: ${err instanceof Error ? err.message : String(err)}`);
+      logError(`[refreshFilesAndComments] Failed: ${err instanceof Error ? err.message : String(err)}`);
       changedFilesProvider.setError(`Failed to refresh PR #${prNumber}`);
     }
   }
@@ -284,7 +284,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     try {
       comments = await githubService.getLineComments(prNumber);
     } catch (err) {
-      log(`Failed to load inline comments: ${err instanceof Error ? err.message : String(err)}`);
+      logError(`Failed to load inline comments: ${err instanceof Error ? err.message : String(err)}`);
       return;
     }
 
@@ -779,7 +779,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   // ─── Initial load ──────────────────────────────────────────────────────────
-  showLog();
   void prPanelProvider.refresh();
 
   // ─── Branch-based PR restore ───────────────────────────────────────────────
@@ -833,7 +832,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       log(`[restore] Done — PR #${pr.number} restored.`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      log(`[restore] FAILED: ${msg}`);
+      logError(`[restore] FAILED: ${msg}`);
       void vscode.window.showWarningMessage(
         `Kibana PR Reviewer: Could not restore PR state — ${msg}`
       );

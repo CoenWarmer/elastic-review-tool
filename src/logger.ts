@@ -19,3 +19,8 @@ export function logJson(label: string, value: unknown): void {
 export function showLog(): void {
   channel?.show(true);
 }
+
+export function logError(message: string): void {
+  log(`ERROR: ${message}`);
+  channel?.show(true);
+}

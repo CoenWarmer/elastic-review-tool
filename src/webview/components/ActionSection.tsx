@@ -94,16 +94,10 @@ export function ActionSection({
         <button
           className="synthtrace-settings-btn"
           title="Refresh scenarios list"
+          disabled
           onClick={() => postMessage({ type: 'refreshScenarios' })}
         >
           ⚙
-        </button>
-        <button
-          className="synthtrace-run-btn"
-          disabled={!selectedScenario || kibanaStatus !== 'running'}
-          onClick={() => postMessage({ type: 'runSynthtrace', scenario: selectedScenario, live })}
-        >
-          ▶ Run synthtrace
         </button>
         <label className="synthtrace-live-label">
           <input
@@ -113,6 +107,13 @@ export function ActionSection({
           />
           live
         </label>
+        <button
+          className="synthtrace-run-btn"
+          disabled={!selectedScenario || kibanaStatus !== 'running'}
+          onClick={() => postMessage({ type: 'runSynthtrace', scenario: selectedScenario, live })}
+        >
+          ▶ Run synthtrace
+        </button>
       </div>
     </div>
   );
