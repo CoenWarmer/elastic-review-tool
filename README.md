@@ -8,6 +8,7 @@ Kibana has a large influx of new PRs. The introduction of AI assisted coding alr
 
 Traditionally PRs are reviewed via the Github UI. While this is good for some use cases, it could be way better. At the time of writing, Github's UI has been largely stagnant for years.
 
+**Data needed for a good review**
 There is not an insignficant amount of data points that an engineer (or an LLM) needs to fully judge the quality of a PR.
 
 You need:
@@ -17,7 +18,7 @@ You need:
 - information on test coverage
 - how the proposed feature behaves functionally, at runtime
 
-Therefore, strictly reviewing from the Github UI is fundamentally incomplete. Thus, it leads to low quality reviews.
+Therefore, strictly reviewing from the Github UI is incomplete. As such, it leads to low quality reviews.
 
 Some reviewers go further than a look at the code and actually check out the branch and see how the feature behaves. But there is no hard requirement on this.
 
