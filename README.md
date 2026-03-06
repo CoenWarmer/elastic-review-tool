@@ -2,6 +2,8 @@
 
 A VSCode/Cursor extension for Kibana engineers to review pull requests efficiently.
 
+<img width="1140" height="759" alt="Screenshot 2026-03-05 at 19 12 41" src="https://github.com/user-attachments/assets/cdb2ef0a-bd44-41b3-ae84-60e7d89dbdb6" />
+
 ## Why?
 
 Kibana has a large influx of new PRs. The introduction of AI assisted coding already makes the influx even higher.
@@ -47,9 +49,16 @@ This is where this extension comes in.
 ## Features
 
 - **Team-filtered PR queue** — shows only PRs where your team is a requested reviewer
+<img width="436" height="517" alt="Screenshot 2026-03-05 at 19 09 41" src="https://github.com/user-attachments/assets/f4154e3b-0b30-4dc6-b8b2-8e25d08bb67d" />
+
+
 - **One-click PR checkout** — runs `gh pr checkout <number>` for you
+<img width="440" height="412" alt="Screenshot 2026-03-05 at 19 10 07" src="https://github.com/user-attachments/assets/6b557499-73d8-4580-b11c-18ea94aba286" />
+
 - **Smart file ordering** — orders changed files from core implementation to peripheral (tests, config, docs), with optional LLM enhancement
 - **Inline diff view** — click any file to open a color-highlighted diff
+- **Approve, comment or request changes** — Get the full discussion inside the IDE
+<img width="426" height="155" alt="Screenshot 2026-03-05 at 19 12 55" src="https://github.com/user-attachments/assets/734c3cdc-5b6d-4ae3-872e-3f54a46e00b9" />
 
 ## Prerequisites
 
