@@ -33,11 +33,6 @@ jobs:
       - name: Package extension
         run: npm run package
 
-      # The .vsix filename is <name>-<version>.vsix; resolve it dynamically.
-      - name: Resolve .vsix path
-        id: vsix
-        run: echo "path=$(ls *.vsix)" >> "$GITHUB_OUTPUT"
-
       - name: Publish to VS Code Marketplace
         run: npm run publish
         env:
@@ -46,5 +41,5 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.vsix.outputs.path }}
+          files: "*.vsix"
           generate_release_notes: true
