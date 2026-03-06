@@ -2,7 +2,7 @@
   "name": "kibana-pr-reviewer",
   "displayName": "Kibana PR Reviewer",
   "description": "Review Kibana pull requests with team filtering, smart file ordering, and inline diffs",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "cowibewa",
   "license": "MIT",
   "repository": {
