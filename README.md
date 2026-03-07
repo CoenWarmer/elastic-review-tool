@@ -26,7 +26,7 @@ Therefore, strictly reviewing from the Github UI means a reviewer does not have 
 ### Friction when reviewing in Kibana
 In addition to this, reviewing PRs at Kibana has friction. 
 
-Reviewers look at static code. Some reviewers go further and actually check out the branch and see how the feature behaves.
+Reviewers tend to look at static code. Some reviewers go further and actually check out the branch and see how the feature behaves.
 
 I suspect that the reason for this is the amount of friction that a reviewer has to deal with in getting a Kibana PR ready to review.
 
@@ -42,7 +42,7 @@ A reviewer needs to:
 - judge the code in context of the product
 - judge if the code covers both happy and unhappy paths
 
-This, especially the getting started parts, take effort and are slow (bootstrapping can take a while).
+This, especially the getting started parts, take effort and are slow (bootstrapping and starting Kibana after switching branches can take somewhere between 1 and 4 minutes).
 
 The speed of bootstrapping / starting Kibana we can't fix easily, but we can improve our tooling to make things easier.
 
