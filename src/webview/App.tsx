@@ -33,6 +33,7 @@ const initialState: AppState = {
   esStatus: 'stopped',
   kibanaStatus: 'stopped',
   checkedOutPrNumber: null,
+  currentUserLogin: '',
   repo: 'elastic/kibana',
   synthtraceScenarios: [],
 };
@@ -106,23 +107,18 @@ export function App() {
   const queueLabel = (
     <>
       Review Queue{' '}
-      {state.isLoading
-        ? <Spinner className="tab-spinner" />
-        : <span className="tab-count">({visiblePrCount})</span>
-      }
+      {state.isLoading ? (
+        <Spinner className="tab-spinner" />
+      ) : (
+        <span className="tab-count">({visiblePrCount})</span>
+      )}
     </>
   );
-  const reviewingLabel = state.currentPr
-    ? `Reviewing #${state.currentPr.number}`
-    : 'Reviewing';
+  const reviewingLabel = state.currentPr ? `Reviewing #${state.currentPr.number}` : 'Reviewing';
 
   return (
     <>
-      <TabBar
-        activeTab={state.activeTab}
-        queueLabel={queueLabel}
-        reviewingLabel={reviewingLabel}
-      />
+      <TabBar activeTab={state.activeTab} queueLabel={queueLabel} reviewingLabel={reviewingLabel} />
 
       <div className={`pane${state.activeTab === 'queue' ? ' active' : ''}`} id="pane-queue">
         <QueuePane
@@ -134,10 +130,14 @@ export function App() {
           userTeams={state.userTeams}
           teamFilter={state.teamFilter}
           teamFilterMembers={state.teamFilterMembers}
+          currentUserLogin={state.currentUserLogin}
         />
       </div>
 
-      <div className={`pane${state.activeTab === 'reviewing' ? ' active' : ''}`} id="pane-reviewing">
+      <div
+        className={`pane${state.activeTab === 'reviewing' ? ' active' : ''}`}
+        id="pane-reviewing"
+      >
         <ReviewingPane
           currentPr={state.currentPr}
           discussionComments={state.discussionComments}

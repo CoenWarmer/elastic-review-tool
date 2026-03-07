@@ -72,7 +72,11 @@ export function ActionSection({
           <span className={`server-dot ${kibanaStatus}`} />
           <span className="server-label">Kibana</span>
           <span className="server-action">
-            {kibanaStatus === 'running' ? 'Restart' : kibanaStatus === 'starting' ? 'Starting…' : 'Start'}
+            {kibanaStatus === 'running'
+              ? 'Restart'
+              : kibanaStatus === 'starting'
+                ? 'Starting…'
+                : 'Start'}
           </span>
         </button>
         <button
@@ -109,11 +113,7 @@ export function ActionSection({
           ⚙
         </button>
         <label className="synthtrace-live-label">
-          <input
-            type="checkbox"
-            checked={live}
-            onChange={(e) => setLive(e.target.checked)}
-          />
+          <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
           live
         </label>
         <button

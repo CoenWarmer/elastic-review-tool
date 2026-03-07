@@ -133,7 +133,9 @@ export async function checkoutPR(
               'Cancel'
             );
             if (choice !== 'Delete local branch and retry') {
-              throw new Error(`Checkout cancelled — local branch "${localConflict}" was not deleted.`);
+              throw new Error(
+                `Checkout cancelled — local branch "${localConflict}" was not deleted.`
+              );
             }
             log(`Deleting local branch "${localConflict}"…`);
             await deleteLocalBranch(localConflict, cwd);
@@ -188,11 +190,7 @@ async function hasUncommittedChanges(cwd: string | undefined): Promise<boolean> 
   }
 }
 
-async function runCheckout(
-  prNumber: number,
-  repo: string,
-  cwd: string | undefined
-): Promise<void> {
+async function runCheckout(prNumber: number, repo: string, cwd: string | undefined): Promise<void> {
   log(`gh pr checkout ${prNumber} --repo ${repo}`);
   const { stdout, stderr } = await execFileAsync(
     'gh',
@@ -240,7 +238,7 @@ async function pruneRemotes(cwd: string | undefined): Promise<void> {
       log(`git remote prune ${remote}`);
       await execFileAsync('git', ['remote', 'prune', remote], { cwd });
       log(`  pruned ${remote}`);
-    } catch (_err) {
+    } catch {
       log(`  could not prune ${remote} (remote may not exist)`);
     }
   }

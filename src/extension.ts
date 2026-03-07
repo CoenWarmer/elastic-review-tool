@@ -58,21 +58,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // ─── Check gh is installed and authenticated ───────────────────────────────
   const ghOk = await githubService.isGhAuthenticated();
   if (!ghOk) {
-    void vscode.window.showWarningMessage(
-      'Kibana PR Reviewer: `gh` CLI is not authenticated. Run `gh auth login` first.',
-      'Open Terminal'
-    ).then((choice) => {
-      if (choice === 'Open Terminal') {
-        vscode.commands.executeCommand('workbench.action.terminal.new');
-      }
-    });
+    void vscode.window
+      .showWarningMessage(
+        'Kibana PR Reviewer: `gh` CLI is not authenticated. Run `gh auth login` first.',
+        'Open Terminal'
+      )
+      .then((choice) => {
+        if (choice === 'Open Terminal') {
+          vscode.commands.executeCommand('workbench.action.terminal.new');
+        }
+      });
   }
 
   // ─── Status bar ────────────────────────────────────────────────────────────
-  const statusBarItem = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Left,
-    100
-  );
+  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBarItem.text = '$(git-pull-request) PR Reviewer';
   statusBarItem.tooltip = 'Kibana PR Reviewer — click to clear current PR';
   statusBarItem.command = 'kibana-pr-reviewer.clearCheckedOutPR';
@@ -80,7 +79,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(statusBarItem);
 
   // ─── Providers ─────────────────────────────────────────────────────────────
-  const prPanelProvider = new PrPanelProvider(githubService, codeOwnersService, context.extensionUri);
+  const prPanelProvider = new PrPanelProvider(
+    githubService,
+    codeOwnersService,
+    context.extensionUri
+  );
   const changedFilesProvider = prPanelProvider; // unified panel
 
   context.subscriptions.push(
@@ -125,17 +128,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const msg = err instanceof Error ? err.message : String(err);
         const isConfigError = msg.includes('llmProvider') || msg.includes('No language model');
         const actions = isConfigError ? ['Open Settings'] : [];
-        void vscode.window.showErrorMessage(
-          `Review order suggestion failed: ${msg}`,
-          ...actions
-        ).then((choice) => {
-          if (choice === 'Open Settings') {
-            void vscode.commands.executeCommand(
-              'workbench.action.openSettings',
-              'kibana-pr-reviewer.llm'
-            );
-          }
-        });
+        void vscode.window
+          .showErrorMessage(`Review order suggestion failed: ${msg}`, ...actions)
+          .then((choice) => {
+            if (choice === 'Open Settings') {
+              void vscode.commands.executeCommand(
+                'workbench.action.openSettings',
+                'kibana-pr-reviewer.llm'
+              );
+            }
+          });
       })
       .finally(() => cts.dispose());
   };
@@ -213,8 +215,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // If it matches the checked-out branch: reload changed files and inline comments.
   // If it differs: clear both so stale data from a previous checkout is not shown.
   prPanelProvider.onSelectPR = (pr) => {
-    prPanelProvider.checkedOutPrNumber = changedFilesProvider.getCurrentPrNumber();
-    const checkedOutPrNumber = changedFilesProvider.getCurrentPrNumber();
+    // Use the stable checkedOutPrNumber (set on checkout completion), NOT cfPrNumber
+    // which is reset to null whenever clear() is called for a different PR.
+    const checkedOutPrNumber = prPanelProvider.checkedOutPrNumber;
     if (pr.number === checkedOutPrNumber) {
       void refreshFilesAndComments(pr.number);
     } else {
@@ -225,9 +228,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Refresh button: re-fetch description, files and comments for the current PR.
   prPanelProvider.onRefreshPR = (pr) => {
-    prPanelProvider.checkedOutPrNumber = changedFilesProvider.getCurrentPrNumber();
     prPanelProvider.refreshDetail();
-    if (pr.number === changedFilesProvider.getCurrentPrNumber()) {
+    if (pr.number === prPanelProvider.checkedOutPrNumber) {
       void refreshFilesAndComments(pr.number);
     }
   };
@@ -281,7 +283,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await loadCommentThreads(prNumber, baseCommit);
       log(`[refreshFilesAndComments] Done — ${ordered.length} file(s), comments reloaded`);
     } catch (err) {
-      logError(`[refreshFilesAndComments] Failed: ${err instanceof Error ? err.message : String(err)}`);
+      logError(
+        `[refreshFilesAndComments] Failed: ${err instanceof Error ? err.message : String(err)}`
+      );
       changedFilesProvider.setError(`Failed to refresh PR #${prNumber}`);
     }
   }
@@ -294,7 +298,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     try {
       comments = await githubService.getLineComments(prNumber);
     } catch (err) {
-      logError(`Failed to load inline comments: ${err instanceof Error ? err.message : String(err)}`);
+      logError(
+        `Failed to load inline comments: ${err instanceof Error ? err.message : String(err)}`
+      );
       return;
     }
 
@@ -367,7 +373,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'kibana-pr-reviewer.checkoutPR',
-      async (prOrNumber: import('./services/github_service').GhPullRequest | number | undefined) => {
+      async (
+        prOrNumber: import('./services/github_service').GhPullRequest | number | undefined
+      ) => {
         let target: number | import('./services/github_service').GhPullRequest;
 
         if (prOrNumber && typeof prOrNumber === 'object' && 'number' in prOrNumber) {
@@ -379,8 +387,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           const input = await vscode.window.showInputBox({
             prompt: 'Enter PR number to checkout',
             placeHolder: '12345',
-            validateInput: (v) =>
-              /^\d+$/.test(v.trim()) ? null : 'Enter a valid PR number',
+            validateInput: (v) => (/^\d+$/.test(v.trim()) ? null : 'Enter a valid PR number'),
           });
           if (!input) return;
           target = parseInt(input.trim(), 10);
@@ -401,11 +408,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'kibana-pr-reviewer.openDiff',
-      async (
-        fileOrItem: OrderedFile | undefined,
-        prNumber?: number,
-        baseCommit?: string
-      ) => {
+      async (fileOrItem: OrderedFile | undefined, prNumber?: number, baseCommit?: string) => {
         let file: OrderedFile;
         let pr: number;
         let base: string;
@@ -415,9 +418,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           pr = prNumber;
           base = baseCommit;
         } else {
-          void vscode.window.showWarningMessage(
-            'Kibana PR Reviewer: No file selected to diff.'
-          );
+          void vscode.window.showWarningMessage('Kibana PR Reviewer: No file selected to diff.');
           return;
         }
 
@@ -446,12 +447,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor) return;
       const scheme = editor.document.uri.scheme;
-      const isPrDiff = scheme === 'pr-base' || (() => {
-        const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        if (!wsRoot) return false;
-        const rel = vscode.workspace.asRelativePath(editor.document.uri, false);
-        return changedFilesProvider.getCurrentFiles().some((f) => f.path === rel);
-      })();
+      const isPrDiff =
+        scheme === 'pr-base' ||
+        (() => {
+          const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          if (!wsRoot) return false;
+          const rel = vscode.workspace.asRelativePath(editor.document.uri, false);
+          return changedFilesProvider.getCurrentFiles().some((f) => f.path === rel);
+        })();
       if (!isPrDiff) {
         void vscode.commands.executeCommand('setContext', 'kibana-pr-reviewer.prDiffOpen', false);
       }
@@ -592,9 +595,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const { promisify } = await import('util');
       headSha = (await promisify(execFile)('git', ['rev-parse', 'HEAD'], { cwd })).stdout.trim();
     } catch {
-      void vscode.window.showErrorMessage(
-        'Kibana PR Reviewer: Could not resolve HEAD commit.'
-      );
+      void vscode.window.showErrorMessage('Kibana PR Reviewer: Could not resolve HEAD commit.');
       return;
     }
 
@@ -623,7 +624,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'kibana-pr-reviewer.createNote',
-      (reply: vscode.CommentReply) => { void submitCommentReply(reply); }
+      (reply: vscode.CommentReply) => {
+        void submitCommentReply(reply);
+      }
     )
   );
 
@@ -631,7 +634,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'kibana-pr-reviewer.replyNote',
-      (reply: vscode.CommentReply) => { void submitCommentReply(reply); }
+      (reply: vscode.CommentReply) => {
+        void submitCommentReply(reply);
+      }
     )
   );
 
@@ -639,7 +644,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'kibana-pr-reviewer.deleteThread',
-      (thread: vscode.CommentThread) => { thread.dispose(); }
+      (thread: vscode.CommentThread) => {
+        thread.dispose();
+      }
     )
   );
 
@@ -664,9 +671,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       if (key) {
         await context.secrets.store('kibana-pr-reviewer.llmApiKey', key);
-        void vscode.window.showInformationMessage(
-          `Kibana PR Reviewer: ${provider} API key saved.`
-        );
+        void vscode.window.showInformationMessage(`Kibana PR Reviewer: ${provider} API key saved.`);
       }
     })
   );
@@ -677,9 +682,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const prNumber = changedFilesProvider.getCurrentPrNumber();
       const baseCommit = changedFilesProvider.getCurrentBaseCommit();
       if (prNumber === null) {
-        void vscode.window.showInformationMessage(
-          'Kibana PR Reviewer: No PR checked out.'
-        );
+        void vscode.window.showInformationMessage('Kibana PR Reviewer: No PR checked out.');
         return;
       }
       await vscode.window.withProgress(
@@ -691,7 +694,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Owned-by-me filter — two commands so the icon changes when active
   const setOwnedByMeContext = (active: boolean) =>
-    vscode.commands.executeCommand('setContext', 'kibana-pr-reviewer.ownedByMeFilterActive', active);
+    vscode.commands.executeCommand(
+      'setContext',
+      'kibana-pr-reviewer.ownedByMeFilterActive',
+      active
+    );
 
   context.subscriptions.push(
     vscode.commands.registerCommand('kibana-pr-reviewer.enableOwnedByMeFilter', async () => {
@@ -723,7 +730,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     })
   );
 
-
   // Diagnostics — show detected teams and a sample of PR reviewRequests
   context.subscriptions.push(
     vscode.commands.registerCommand('kibana-pr-reviewer.showDiagnostics', async () => {
@@ -733,9 +739,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       try {
         const prs = await githubService.listOpenPRsForTeams(teams);
         if (prs.length > 0) {
-          const sample = prs.slice(0, 3).map((pr) =>
-            `  #${pr.number} reviewRequests: ${JSON.stringify(pr.reviewRequests)} | reviewDecision: ${pr.reviewDecision}`
-          ).join('\n');
+          const sample = prs
+            .slice(0, 3)
+            .map(
+              (pr) =>
+                `  #${pr.number} reviewRequests: ${JSON.stringify(pr.reviewRequests)} | reviewDecision: ${pr.reviewDecision}`
+            )
+            .join('\n');
           prSample = `\n\nFirst ${Math.min(prs.length, 3)} of ${prs.length} PRs for your teams:\n${sample}`;
         } else {
           prSample = '\n\nNo PRs found for your teams.';
@@ -805,7 +815,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       log('[restore] Calling gh pr view…');
       const pr = await githubService.getPRForCurrentBranch(workspaceCwd);
-      log(`[restore] getPRForCurrentBranch returned: ${pr ? `PR #${pr.number} "${pr.title}"` : 'null'}`);
+      log(
+        `[restore] getPRForCurrentBranch returned: ${pr ? `PR #${pr.number} "${pr.title}"` : 'null'}`
+      );
 
       if (!pr) {
         log('[restore] No PR for current branch — nothing to restore.');

@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react';
 import { postMessage } from '../vscode';
-import { ageLabel, renderMarkdown, extractBuildkiteSummary, type BuildkiteSummaryItem } from '../utils';
+import {
+  ageLabel,
+  renderMarkdown,
+  extractBuildkiteSummary,
+  isBot,
+  type BuildkiteSummaryItem,
+} from '../utils';
 import { FilesSection } from './FilesSection';
 import { DiscussionSection } from './DiscussionSection';
 import type { AppState, GhPullRequest, GhPrFile, TeamReviewInfo } from '../types';
@@ -33,14 +39,34 @@ type ReviewingPaneProps = Pick<
   onClearFeedback: () => void;
 };
 
-export function ReviewingPane({ cfFiles, checkoutBusy, checkoutStage, esStatus, kibanaStatus, checkedOutPrNumber, commentPosted, reviewSubmitted, onClearFeedback, currentPr, cfActiveFile, cfReviewedPaths, cfOwnedByMePaths, cfIsLoading, cfErrorMessage, cfSuggestedOrder, cfOrderMode, cfIsOrderLoading, discussionComments, repo, synthtraceScenarios }: ReviewingPaneProps) {
+export function ReviewingPane({
+  cfFiles,
+  checkoutBusy,
+  checkoutStage,
+  esStatus,
+  kibanaStatus,
+  checkedOutPrNumber,
+  commentPosted,
+  reviewSubmitted,
+  onClearFeedback,
+  currentPr,
+  cfActiveFile,
+  cfReviewedPaths,
+  cfOwnedByMePaths,
+  cfIsLoading,
+  cfErrorMessage,
+  cfSuggestedOrder,
+  cfOrderMode,
+  cfIsOrderLoading,
+  discussionComments,
+  repo,
+  synthtraceScenarios,
+}: ReviewingPaneProps) {
   const repoUrl = `https://github.com/${repo}`;
 
   // Buildkite data lives in discussion comments posted by elasticmachine, not the PR body.
   // Scan all comment bodies (the bot edits its comment in-place, so the last one wins).
-  const ciBuilds = extractBuildkiteSummary(
-    discussionComments.map((c) => c.body).join('\n')
-  );
+  const ciBuilds = extractBuildkiteSummary(discussionComments.map((c) => c.body).join('\n'));
 
   if (!currentPr) {
     return (
@@ -53,7 +79,18 @@ export function ReviewingPane({ cfFiles, checkoutBusy, checkoutStage, esStatus, 
   return (
     <div className="reviewing-content">
       <div id="pr-header" className="section">
-        <PrHeader pr={currentPr} ciBuilds={ciBuilds} ciBuildsLoading={discussionComments.length === 0} checkoutBusy={checkoutBusy} checkoutStage={checkoutStage} esStatus={esStatus} kibanaStatus={kibanaStatus} checkedOutPrNumber={checkedOutPrNumber} cfFiles={cfFiles} cfOwnedByMePaths={cfOwnedByMePaths} />
+        <PrHeader
+          pr={currentPr}
+          ciBuilds={ciBuilds}
+          ciBuildsLoading={discussionComments.length === 0}
+          checkoutBusy={checkoutBusy}
+          checkoutStage={checkoutStage}
+          esStatus={esStatus}
+          kibanaStatus={kibanaStatus}
+          checkedOutPrNumber={checkedOutPrNumber}
+          cfFiles={cfFiles}
+          cfOwnedByMePaths={cfOwnedByMePaths}
+        />
       </div>
       <div className="section">
         <div
@@ -86,7 +123,16 @@ export function ReviewingPane({ cfFiles, checkoutBusy, checkoutStage, esStatus, 
         />
       </div>
       <div id="action-section" className="section">
-        <ActionSection pr={currentPr} checkoutBusy={checkoutBusy} checkedOutPrNumber={checkedOutPrNumber} checkoutStage={checkoutStage} esStatus={esStatus} kibanaStatus={kibanaStatus} synthtraceScenarios={synthtraceScenarios} postMessage={postMessage} />
+        <ActionSection
+          pr={currentPr}
+          checkoutBusy={checkoutBusy}
+          checkedOutPrNumber={checkedOutPrNumber}
+          checkoutStage={checkoutStage}
+          esStatus={esStatus}
+          kibanaStatus={kibanaStatus}
+          synthtraceScenarios={synthtraceScenarios}
+          postMessage={postMessage}
+        />
       </div>
     </div>
   );
@@ -98,11 +144,22 @@ function PrHeader({
   ciBuildsLoading,
   cfFiles,
   cfOwnedByMePaths,
-}: { pr: GhPullRequest; ciBuilds: BuildkiteSummaryItem[]; ciBuildsLoading: boolean } & Pick<ReviewingPaneProps, 'checkoutBusy' | 'checkoutStage' | 'esStatus' | 'kibanaStatus' | 'checkedOutPrNumber' | 'cfFiles' | 'cfOwnedByMePaths'>) {
+}: { pr: GhPullRequest; ciBuilds: BuildkiteSummaryItem[]; ciBuildsLoading: boolean } & Pick<
+  ReviewingPaneProps,
+  | 'checkoutBusy'
+  | 'checkoutStage'
+  | 'esStatus'
+  | 'kibanaStatus'
+  | 'checkedOutPrNumber'
+  | 'cfFiles'
+  | 'cfOwnedByMePaths'
+>) {
   return (
     <>
       <h2 className="pr-desc-title">
-        <a href={pr.url} target="_blank" rel="noreferrer" className="pr-num">#{pr.number}</a>{' '}
+        <a href={pr.url} target="_blank" rel="noreferrer" className="pr-num">
+          #{pr.number}
+        </a>{' '}
         {pr.title}
       </h2>
 
@@ -124,7 +181,9 @@ function PrHeader({
             ciBuilds.map((b) => (
               <span className="ci-status" key={b.pipelineName}>
                 <span className={`bk-icon ${b.cls}`}>{b.icon}</span>{' '}
-                <a href={b.url} className="bk-link">#{b.buildNumber}</a>{' '}
+                <a href={b.url} className="bk-link">
+                  #{b.buildNumber}
+                </a>{' '}
               </span>
             ))
           ) : (
@@ -132,14 +191,22 @@ function PrHeader({
           )}
         </div>
 
-        <FileOwnershipRow cfFiles={cfFiles} cfOwnedByMePaths={cfOwnedByMePaths} previewFiles={pr.files} />
+        <FileOwnershipRow
+          cfFiles={cfFiles}
+          cfOwnedByMePaths={cfOwnedByMePaths}
+          previewFiles={pr.files}
+        />
         <TeamsTable pr={pr} />
       </div>
     </>
   );
 }
 
-function FileOwnershipRow({ cfFiles, cfOwnedByMePaths, previewFiles }: Pick<ReviewingPaneProps, 'cfFiles' | 'cfOwnedByMePaths'> & { previewFiles?: GhPrFile[] }) {
+function FileOwnershipRow({
+  cfFiles,
+  cfOwnedByMePaths,
+  previewFiles,
+}: Pick<ReviewingPaneProps, 'cfFiles' | 'cfOwnedByMePaths'> & { previewFiles?: GhPrFile[] }) {
   // Prefer the live checkout file list; fall back to the PR detail preview list.
   const files = cfFiles.length > 0 ? cfFiles : (previewFiles ?? []);
 
@@ -167,14 +234,17 @@ function FileOwnershipRow({ cfFiles, cfOwnedByMePaths, previewFiles }: Pick<Revi
     <div className="info-row">
       <span className="label">Files</span>
       <div className="files-ownership">
-        <div className="files-ownership-bar" title={`${mine} owned by my team, ${other} owned by other teams`}>
+        <div
+          className="files-ownership-bar"
+          title={`${mine} owned by my team, ${other} owned by other teams`}
+        >
           <div className="files-ownership-mine" style={{ width: `${minePct}%` }} />
           <div className="files-ownership-other" style={{ width: `${100 - minePct}%` }} />
         </div>
         <span className="files-ownership-counts">
-          <span className="files-ownership-mine-label">{mine} mine</span>
+          <span className="files-ownership-mine-label">{mine} owned by my team</span>
           {' · '}
-          <span className="files-ownership-other-label">{other} other</span>
+          <span className="files-ownership-other-label">{other} owned by others</span>
         </span>
       </div>
     </div>
@@ -186,6 +256,9 @@ function TeamsTable({ pr }: { pr: GhPullRequest }) {
   const inProgressTags: ReactNode[] = [];
   const reviewedTags: ReactNode[] = [];
 
+  // Track logins already attributed to a team to avoid duplicates.
+  const attributedLogins = new Set<string>();
+
   const buildTag = (
     fullSlug: string,
     indicator: ReactNode,
@@ -196,7 +269,8 @@ function TeamsTable({ pr }: { pr: GhPullRequest }) {
     const label = reviewer ? `${reviewer} for ${bareSlug}` : `@${bareSlug}`;
     return (
       <span key={fullSlug + (reviewer ?? '')} className="tag" data-tip={tip || undefined}>
-        {indicator}{label}
+        {indicator}
+        {label}
       </span>
     );
   };
@@ -205,38 +279,68 @@ function TeamsTable({ pr }: { pr: GhPullRequest }) {
     for (const [slug, info] of Object.entries(pr.teamReviewStatuses)) {
       const s = info as TeamReviewInfo;
       if (s.status === 'APPROVED') {
-        const tip = s.reviewer ? `Approved by ${s.reviewer.login} ${ageLabel(s.reviewer.submittedAt)}` : '';
-        reviewedTags.push(buildTag(slug, <span className="tag-status approved">✓</span>, tip, s.reviewer?.login));
+        const tip = s.reviewer
+          ? `Approved by ${s.reviewer.login} ${ageLabel(s.reviewer.submittedAt)}`
+          : '';
+        if (s.reviewer) attributedLogins.add(s.reviewer.login);
+        reviewedTags.push(
+          buildTag(slug, <span className="tag-status approved">✅</span>, tip, s.reviewer?.login)
+        );
       } else if (s.status === 'CHANGES_REQUESTED') {
-        const tip = s.reviewer ? `Changes requested by ${s.reviewer.login} ${ageLabel(s.reviewer.submittedAt)}` : '';
-        reviewedTags.push(buildTag(slug, <span className="tag-status changes_requested">✗</span>, tip, s.reviewer?.login));
+        const tip = s.reviewer
+          ? `Changes requested by ${s.reviewer.login} ${ageLabel(s.reviewer.submittedAt)}`
+          : '';
+        if (s.reviewer) attributedLogins.add(s.reviewer.login);
+        reviewedTags.push(
+          buildTag(
+            slug,
+            <span className="tag-status changes_requested">❌</span>,
+            tip,
+            s.reviewer?.login
+          )
+        );
       } else if (s.status === 'IN_PROGRESS') {
-        const tip = s.reviewer ? `Reviewing since ${ageLabel(s.reviewer.submittedAt)}` : '';
-        inProgressTags.push(buildTag(slug, <span className="tag-status in-progress">⚡</span>, tip, s.reviewer?.login));
+        // Use the full reviewers array when available; fall back to the legacy single reviewer.
+        const reviewerList = s.reviewers ?? (s.reviewer ? [s.reviewer] : []);
+        const bareSlug = slug.includes('/') ? slug.split('/').pop()! : slug;
+        for (const r of reviewerList) {
+          // Deduplicate: if this login already appeared for another team, skip.
+          if (attributedLogins.has(r.login)) continue;
+          attributedLogins.add(r.login);
+          const tip = `Reviewing since ${ageLabel(r.submittedAt)}`;
+          inProgressTags.push(
+            <span key={slug + r.login} className="tag" data-tip={tip}>
+              <span className="tag-status in-progress">👀</span>
+              {r.login} for {bareSlug}
+            </span>
+          );
+        }
       } else {
         pendingTags.push(buildTag(slug, <span className="tag-status pending">●</span>, ''));
       }
     }
   } else {
-    pr.reviewRequests.filter((r) => r.slug).forEach((r) => {
-      pendingTags.push(buildTag(r.slug!, <span className="tag-status pending">●</span>, ''));
-    });
+    pr.reviewRequests
+      .filter((r) => r.slug)
+      .forEach((r) => {
+        pendingTags.push(buildTag(r.slug!, <span className="tag-status pending">●</span>, ''));
+      });
   }
 
-  // Surface individual COMMENTED reviewers not already in inProgressTags
-  const teamInProgressLogins = new Set(
-    Object.values(pr.teamReviewStatuses ?? {})
-      .filter((s) => s.status === 'IN_PROGRESS')
-      .map((s) => s.reviewer?.login)
-      .filter(Boolean)
-  );
+  // Surface individual COMMENTED reviewers not already attributed to a team.
   (pr.latestReviews ?? [])
-    .filter((r) => r.state === 'COMMENTED' && r.author.login !== pr.author.login && !teamInProgressLogins.has(r.author.login))
+    .filter(
+      (r) =>
+        r.state === 'COMMENTED' &&
+        r.author.login !== pr.author.login &&
+        !attributedLogins.has(r.author.login)
+    )
     .forEach((r) => {
       const tip = `Reviewing since ${ageLabel(r.submittedAt)}`;
       inProgressTags.push(
         <span key={r.author.login} className="tag" data-tip={tip}>
-          <span className="tag-status in-progress">⚡</span>{r.author.login}
+          <span className="tag-status in-progress">{isBot(r.author.login) ? '🤖' : '⚡'}</span>
+          {r.author.login}
         </span>
       );
     });

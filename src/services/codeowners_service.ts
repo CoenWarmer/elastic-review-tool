@@ -51,15 +51,16 @@ function matchesPattern(filePath: string, pattern: string): boolean {
   // Convert glob syntax to a regex
   const escaped = p
     .replace(/[.+^${}()|[\]\\]/g, '\\$&') // escape regex special chars
-    .replace(/\*\*/g, '\x00')              // placeholder for **
-    .replace(/\*/g, '[^/]*')              // * → match within a segment
-    .replace(/\x00/g, '.*');              // ** → match across segments
+    .replace(/\*\*/g, '\x00') // placeholder for **
+    .replace(/\*/g, '[^/]*') // * → match within a segment
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x00/g, '.*'); // ** → match across segments
 
   // If the original pattern had no directory component and wasn't anchored,
   // it can match a filename at any depth.
   const anchored = pattern.startsWith('/') || pattern.includes('/');
   const regex = anchored
-    ? new RegExp(`^${escaped}(/.*)?$`)    // allow optional sub-path after a directory match
+    ? new RegExp(`^${escaped}(/.*)?$`) // allow optional sub-path after a directory match
     : new RegExp(`(^|/)${escaped}(/.*)?$`);
 
   return regex.test(filePath);
@@ -106,9 +107,7 @@ export class CodeOwnersService {
    * Given a list of PR requested-team slugs from gh CLI output, returns true if
    * any of them matches one of the user's teams.
    */
-  async isRequestedFromUserTeam(
-    reviewRequests: Array<{ slug?: string }>
-  ): Promise<boolean> {
+  async isRequestedFromUserTeam(reviewRequests: Array<{ slug?: string }>): Promise<boolean> {
     const userTeams = await this.getUserTeams();
     if (userTeams.length === 0) {
       return false;
@@ -117,9 +116,7 @@ export class CodeOwnersService {
     return reviewRequests.some((r) => {
       if (!r.slug) return false;
       const full = `@elastic/${r.slug}`;
-      return userTeams.some(
-        (ut) => ut.toLowerCase() === full.toLowerCase()
-      );
+      return userTeams.some((ut) => ut.toLowerCase() === full.toLowerCase());
     });
   }
 

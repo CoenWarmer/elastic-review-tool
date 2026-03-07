@@ -31,11 +31,9 @@ async function getFileDiff(
   cwd: string | undefined
 ): Promise<string> {
   try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['diff', baseCommit, 'HEAD', '--', filePath],
-      { cwd }
-    );
+    const { stdout } = await execFileAsync('git', ['diff', baseCommit, 'HEAD', '--', filePath], {
+      cwd,
+    });
     const lines = stdout.split('\n');
     if (lines.length > MAX_DIFF_LINES_PER_FILE) {
       return lines.slice(0, MAX_DIFF_LINES_PER_FILE).join('\n') + '\n[… diff truncated]';
@@ -70,10 +68,7 @@ async function buildFileSections(
   return sections;
 }
 
-function buildPrompt(
-  pr: GhPullRequest,
-  fileSections: string[]
-): string {
+function buildPrompt(pr: GhPullRequest, fileSections: string[]): string {
   const prBody = (pr.body ?? '').slice(0, 800);
   return `You are helping a software engineer review a GitHub pull request.
 Your task: suggest two orderings for reviewing the changed files.
@@ -119,7 +114,9 @@ function parseResponse(raw: string, allPaths: Set<string>): ReviewOrderSuggestio
   try {
     parsed = JSON.parse(jsonText) as ReviewOrderSuggestion;
   } catch {
-    throw new Error(`The model returned a response that could not be parsed. Try again.\n\nRaw: ${raw.slice(0, 300)}`);
+    throw new Error(
+      `The model returned a response that could not be parsed. Try again.\n\nRaw: ${raw.slice(0, 300)}`
+    );
   }
 
   // Fill in files the model forgot; drop paths it hallucinated.
@@ -146,10 +143,13 @@ async function selectVscodeLmModel(): Promise<vscode.LanguageModelChat | null> {
   try {
     const models = await vscode.lm.selectChatModels();
     if (models.length > 0) {
-      log(`[ReviewOrder] vscode.lm found ${models.length} model(s): ${models.map((m) => `${m.name}/${m.family}`).join(', ')}`);
+      log(
+        `[ReviewOrder] vscode.lm found ${models.length} model(s): ${models.map((m) => `${m.name}/${m.family}`).join(', ')}`
+      );
       return (
-        models.find((m) => /gpt-4|claude-3|claude-4|opus|sonnet/i.test(`${m.family ?? ''}${m.name ?? ''}`)) ??
-        models[0]
+        models.find((m) =>
+          /gpt-4|claude-3|claude-4|opus|sonnet/i.test(`${m.family ?? ''}${m.name ?? ''}`)
+        ) ?? models[0]
       );
     }
     log('[ReviewOrder] vscode.lm: selectChatModels() returned 0 models');
@@ -197,11 +197,7 @@ async function suggestWithVscodeLm(
   return raw;
 }
 
-function httpsPost(
-  url: string,
-  headers: Record<string, string>,
-  body: unknown
-): Promise<string> {
+function httpsPost(url: string, headers: Record<string, string>, body: unknown): Promise<string> {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify(body);
     const parsed = new URL(url);
@@ -233,11 +229,7 @@ function httpsPost(
   });
 }
 
-async function suggestWithOpenAi(
-  apiKey: string,
-  model: string,
-  prompt: string
-): Promise<string> {
+async function suggestWithOpenAi(apiKey: string, model: string, prompt: string): Promise<string> {
   log(`[ReviewOrder] Using OpenAI model: ${model}`);
   const responseText = await httpsPost(
     'https://api.openai.com/v1/chat/completions',

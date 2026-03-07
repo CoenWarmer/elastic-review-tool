@@ -43,6 +43,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
   private needsReviewFilterActive = false;
   private userTeams: string[] = [];
   private teamFilter = '';
+  private currentUserLogin = '';
 
   // Description state
   currentPr?: GhPullRequest;
@@ -68,7 +69,9 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
 
   /** PR number currently checked out on the local git branch, or null if none. */
   private _checkedOutPrNumber: number | null = null;
-  get checkedOutPrNumber(): number | null { return this._checkedOutPrNumber; }
+  get checkedOutPrNumber(): number | null {
+    return this._checkedOutPrNumber;
+  }
   set checkedOutPrNumber(value: number | null) {
     this._checkedOutPrNumber = value;
     this.sendState({ checkedOutPrNumber: value });
@@ -279,7 +282,9 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
       this.sendState({ teamFilterMembers: [] });
       return;
     }
-    const repo = vscode.workspace.getConfiguration('kibana-pr-reviewer').get<string>('repo', 'elastic/kibana');
+    const repo = vscode.workspace
+      .getConfiguration('kibana-pr-reviewer')
+      .get<string>('repo', 'elastic/kibana');
     const org = repo.split('/')[0];
     const members = await this.githubService.getTeamMemberLogins(org, team);
     this.teamFilterMembers = members;
@@ -333,7 +338,13 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
       const config = vscode.workspace.getConfiguration('kibana-pr-reviewer');
       log(`Config: repo=${config.get('repo')}`);
 
-      const userTeams = await this.codeOwnersService.getUserTeams();
+      const [userTeams, currentUserLogin] = await Promise.all([
+        this.codeOwnersService.getUserTeams(),
+        this.currentUserLogin
+          ? Promise.resolve(this.currentUserLogin)
+          : this.githubService.getCurrentUser().catch(() => ''),
+      ]);
+      this.currentUserLogin = currentUserLogin;
       log(`User teams: ${userTeams.length > 0 ? userTeams.join(', ') : '(none)'}`);
       this.userTeams = userTeams;
 
@@ -343,7 +354,12 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
           'No teams detected. Set kibana-pr-reviewer.userTeams in Settings ' +
           '(e.g. ["@elastic/obs-onboarding-team"]).';
         this.isLoading = false;
-        this.sendState({ allPrs: [], userTeams: [], errorMessage: this.errorMessage, isLoading: false });
+        this.sendState({
+          allPrs: [],
+          userTeams: [],
+          errorMessage: this.errorMessage,
+          isLoading: false,
+        });
         return;
       }
 
@@ -356,7 +372,13 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
     }
 
     this.isLoading = false;
-    this.sendState({ allPrs: this.allPrs, userTeams: this.userTeams, isLoading: false, errorMessage: this.errorMessage });
+    this.sendState({
+      allPrs: this.allPrs,
+      userTeams: this.userTeams,
+      isLoading: false,
+      errorMessage: this.errorMessage,
+      currentUserLogin: this.currentUserLogin,
+    });
   }
 
   /** Public entry point to re-fetch and re-render the currently displayed PR detail. */
@@ -431,7 +453,10 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
   }
 
   /** Called by extension when the ES/Kibana port status changes. */
-  updateServerStatus(es: 'running' | 'starting' | 'stopped', kibana: 'running' | 'starting' | 'stopped'): void {
+  updateServerStatus(
+    es: 'running' | 'starting' | 'stopped',
+    kibana: 'running' | 'starting' | 'stopped'
+  ): void {
     this.esStatus = es;
     this.kibanaStatus = kibana;
     this.sendState({ esStatus: es, kibanaStatus: kibana });
@@ -470,9 +495,15 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
     this.sendState({ cfActiveFile: filePath });
   }
 
-  getCurrentPrNumber(): number | null { return this.cfPrNumber; }
-  getCurrentFiles(): OrderedFile[] { return this.cfFiles; }
-  getCurrentBaseCommit(): string { return this.cfBaseCommit; }
+  getCurrentPrNumber(): number | null {
+    return this.cfPrNumber;
+  }
+  getCurrentFiles(): OrderedFile[] {
+    return this.cfFiles;
+  }
+  getCurrentBaseCommit(): string {
+    return this.cfBaseCommit;
+  }
 
   // ─── Private helpers ─────────────────────────────────────────────────────────
 
@@ -557,7 +588,10 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
       esStatus: this.esStatus,
       kibanaStatus: this.kibanaStatus,
       checkedOutPrNumber: this._checkedOutPrNumber,
-      repo: vscode.workspace.getConfiguration('kibana-pr-reviewer').get<string>('repo', 'elastic/kibana'),
+      currentUserLogin: this.currentUserLogin,
+      repo: vscode.workspace
+        .getConfiguration('kibana-pr-reviewer')
+        .get<string>('repo', 'elastic/kibana'),
       synthtraceScenarios: this.synthtraceScenarios,
     };
   }

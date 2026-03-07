@@ -17,6 +17,8 @@ export interface GhReview {
 export interface TeamReviewInfo {
   status: 'APPROVED' | 'CHANGES_REQUESTED' | 'PENDING' | 'IN_PROGRESS';
   reviewer?: { login: string; submittedAt: string };
+  /** All team members who have reviewed (IN_PROGRESS state); supersedes the single reviewer field. */
+  reviewers?: Array<{ login: string; submittedAt: string }>;
 }
 
 export interface GhPrFile {
@@ -117,6 +119,7 @@ export interface AppState {
 
   // Misc
   checkedOutPrNumber: number | null;
+  currentUserLogin: string;
   repo: string;
 
   // Synthtrace

@@ -11,7 +11,13 @@ interface Props {
   onClearFeedback: () => void;
 }
 
-export function DiscussionSection({ comments, repoUrl, onCommentPosted, onReviewSubmitted, onClearFeedback }: Props) {
+export function DiscussionSection({
+  comments,
+  repoUrl,
+  onCommentPosted,
+  onReviewSubmitted,
+  onClearFeedback,
+}: Props) {
   const [body, setBody] = useState('');
   const [commentBusy, setCommentBusy] = useState(false);
   const [approveBusy, setApproveBusy] = useState(false);
@@ -69,7 +75,9 @@ export function DiscussionSection({ comments, repoUrl, onCommentPosted, onReview
       </div>
       {count > 0 && (
         <div className="discussion-thread">
-          {comments.map((c) => <DiscussionComment key={c.id} comment={c} repoUrl={repoUrl} />)}
+          {comments.map((c) => (
+            <DiscussionComment key={c.id} comment={c} repoUrl={repoUrl} />
+          ))}
         </div>
       )}
       <div className="comment-box">
@@ -109,7 +117,13 @@ export function DiscussionSection({ comments, repoUrl, onCommentPosted, onReview
   );
 }
 
-function DiscussionComment({ comment: c, repoUrl }: { comment: GhDiscussionComment; repoUrl: string }) {
+function DiscussionComment({
+  comment: c,
+  repoUrl,
+}: {
+  comment: GhDiscussionComment;
+  repoUrl: string;
+}) {
   const reviewBadge =
     c.kind === 'review' && c.reviewState && c.reviewState !== 'COMMENTED' ? (
       <span className={`disc-review-badge disc-${c.reviewState.toLowerCase()}`}>

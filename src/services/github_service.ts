@@ -5,9 +5,9 @@ import { log, logJson } from '../logger';
 const execFileAsync = promisify(execFile);
 
 export interface GhReviewRequest {
-  login?: string;   // present for user reviewers
-  name?: string;    // present for team reviewers
-  slug?: string;    // present for team reviewers
+  login?: string; // present for user reviewers
+  name?: string; // present for team reviewers
+  slug?: string; // present for team reviewers
 }
 
 export type ReviewDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | '';
@@ -148,14 +148,17 @@ export class GitHubService {
       const raw = await runGh([
         'api',
         `/orgs/${org}/teams/${bareSlug}/members`,
-        '--jq', '[.[].login]',
+        '--jq',
+        '[.[].login]',
       ]);
       const members = JSON.parse(raw) as string[];
       this.teamMemberCache.set(key, members);
       log(`Team ${key}: ${members.length} member(s) cached`);
       return members;
     } catch (err) {
-      log(`Could not fetch members for ${key}: ${err instanceof Error ? err.message : String(err)}`);
+      log(
+        `Could not fetch members for ${key}: ${err instanceof Error ? err.message : String(err)}`
+      );
       this.teamMemberCache.set(key, []); // cache empty so we don't retry every call
       return [];
     }
@@ -193,7 +196,9 @@ export class GitHubService {
     });
 
     if (codeOwnerTeams.length === 0) {
-      log('All detected teams are generic — no code-owner teams to query. Configure kibana-pr-reviewer.userTeams manually.');
+      log(
+        'All detected teams are generic — no code-owner teams to query. Configure kibana-pr-reviewer.userTeams manually.'
+      );
       return [];
     }
 
@@ -210,18 +215,26 @@ export class GitHubService {
 
         try {
           const raw = await runGh([
-            'pr', 'list',
-            '--repo', this.repo,
-            '--state', 'open',
-            '--search', searchQuery,
-            '--json', JSON_FIELDS,
-            '--limit', '200',
+            'pr',
+            'list',
+            '--repo',
+            this.repo,
+            '--state',
+            'open',
+            '--search',
+            searchQuery,
+            '--json',
+            JSON_FIELDS,
+            '--limit',
+            '200',
           ]);
           const prs = JSON.parse(raw) as GhPullRequest[];
           log(`  → ${prs.length} PRs for ${teamSlug}`);
           return prs;
         } catch (err) {
-          log(`  ✗ Query failed for ${teamSlug}: ${err instanceof Error ? err.message : String(err)}`);
+          log(
+            `  ✗ Query failed for ${teamSlug}: ${err instanceof Error ? err.message : String(err)}`
+          );
           return [] as GhPullRequest[];
         }
       })
@@ -279,35 +292,43 @@ export class GitHubService {
     // but their review_requested event is permanent.
     const [prRaw, eventsRaw] = await Promise.all([
       runGh([
-        'pr', 'view', String(prNumber),
-        '--repo', this.repo,
+        'pr',
+        'view',
+        String(prNumber),
+        '--repo',
+        this.repo,
         '--json',
         'number,title,body,isDraft,additions,deletions,createdAt,headRefName,baseRefName,reviewRequests,reviewDecision,author,url,files,latestReviews',
       ]),
       // Fetch without --jq / --paginate so there are no format or version surprises;
       // parse team slugs from the raw JSON in TypeScript instead.
-      runGh([
-        'api',
-        `repos/${owner}/${repoName}/issues/${prNumber}/events?per_page=100`,
-      ]).catch((err) => {
-        log(`Could not fetch issue events for PR #${prNumber}: ${err instanceof Error ? err.message : String(err)}`);
-        return '[]';
-      }),
+      runGh(['api', `repos/${owner}/${repoName}/issues/${prNumber}/events?per_page=100`]).catch(
+        (err) => {
+          log(
+            `Could not fetch issue events for PR #${prNumber}: ${err instanceof Error ? err.message : String(err)}`
+          );
+          return '[]';
+        }
+      ),
     ]);
 
     const pr = JSON.parse(prRaw) as GhPullRequestDetail;
 
     // Extract bare team slugs from review_requested events.
-    interface IssueEvent { event: string; requested_team?: { slug?: string } | null }
+    interface IssueEvent {
+      event: string;
+      requested_team?: { slug?: string } | null;
+    }
     const events = JSON.parse(eventsRaw) as IssueEvent[];
     const eventTeamSlugs = events
       .filter((e) => e.event === 'review_requested' && e.requested_team?.slug)
       .map((e) => e.requested_team!.slug!);
-    log(`PR #${prNumber}: ${eventTeamSlugs.length} team review_requested event(s): ${eventTeamSlugs.join(', ') || '(none)'}`);
+    log(
+      `PR #${prNumber}: ${eventTeamSlugs.length} team review_requested event(s): ${eventTeamSlugs.join(', ') || '(none)'}`
+    );
 
     // Normalise everything to "org/bareSlug" so keys are stable and display-ready.
-    const normalise = (slug: string) =>
-      slug.includes('/') ? slug : `${org}/${slug}`;
+    const normalise = (slug: string) => (slug.includes('/') ? slug : `${org}/${slug}`);
 
     const allTeamSlugs = new Set<string>([
       ...eventTeamSlugs.map(normalise),
@@ -332,9 +353,16 @@ export class GitHubService {
       await Promise.all(
         [...allTeamSlugs].map(async (fullSlug) => {
           const members = await this.getTeamMemberLogins(org, fullSlug);
-          const approver = members.map((m) => reviewByLogin.get(m)).find((r) => r?.state === 'APPROVED');
-          const blocker = members.map((m) => reviewByLogin.get(m)).find((r) => r?.state === 'CHANGES_REQUESTED');
-          const commenter = members.map((m) => commentedByLogin.get(m)).find((r) => r);
+          const approver = members
+            .map((m) => reviewByLogin.get(m))
+            .find((r) => r?.state === 'APPROVED');
+          const blocker = members
+            .map((m) => reviewByLogin.get(m))
+            .find((r) => r?.state === 'CHANGES_REQUESTED');
+          // Collect ALL commenters from this team, not just the first one.
+          const commenters = members
+            .map((m) => commentedByLogin.get(m))
+            .filter((r): r is NonNullable<typeof r> => r !== undefined);
 
           if (approver) {
             statuses[fullSlug] = {
@@ -346,10 +374,18 @@ export class GitHubService {
               status: 'CHANGES_REQUESTED',
               reviewer: { login: blocker.author.login, submittedAt: blocker.submittedAt },
             };
-          } else if (commenter) {
+          } else if (commenters.length > 0) {
             statuses[fullSlug] = {
               status: 'IN_PROGRESS',
-              reviewer: { login: commenter.author.login, submittedAt: commenter.submittedAt },
+              // Keep legacy single-reviewer field pointing at the first commenter.
+              reviewer: {
+                login: commenters[0].author.login,
+                submittedAt: commenters[0].submittedAt,
+              },
+              reviewers: commenters.map((r) => ({
+                login: r.author.login,
+                submittedAt: r.submittedAt,
+              })),
             };
           } else {
             statuses[fullSlug] = { status: 'PENDING' };
@@ -425,8 +461,10 @@ export class GitHubService {
     const args = [
       'api',
       `repos/${owner}/${repo}/pulls/${prNumber}/reviews`,
-      '--method', 'POST',
-      '-f', `event=${event}`,
+      '--method',
+      'POST',
+      '-f',
+      `event=${event}`,
     ];
     if (body?.trim()) {
       args.push('-f', `body=${body.trim()}`);
@@ -435,11 +473,7 @@ export class GitHubService {
   }
 
   async postComment(prNumber: number, body: string): Promise<void> {
-    await runGh([
-      'pr', 'comment', String(prNumber),
-      '--repo', this.repo,
-      '--body', body,
-    ]);
+    await runGh(['pr', 'comment', String(prNumber), '--repo', this.repo, '--body', body]);
   }
 
   /**
@@ -476,7 +510,9 @@ export class GitHubService {
         return null;
       }
     } catch (err) {
-      log(`[getPRForCurrentBranch] git branch failed: ${err instanceof Error ? err.message : String(err)}`);
+      log(
+        `[getPRForCurrentBranch] git branch failed: ${err instanceof Error ? err.message : String(err)}`
+      );
       return null;
     }
 
@@ -487,12 +523,18 @@ export class GitHubService {
     try {
       const raw = await runGh(
         [
-          'pr', 'list',
-          '--head', branch,
-          '--repo', this.repo,
-          '--state', 'open',
-          '--json', JSON_FIELDS,
-          '--limit', '1',
+          'pr',
+          'list',
+          '--head',
+          branch,
+          '--repo',
+          this.repo,
+          '--state',
+          'open',
+          '--json',
+          JSON_FIELDS,
+          '--limit',
+          '1',
         ],
         cwd
       );
@@ -504,7 +546,9 @@ export class GitHubService {
       log(`[getPRForCurrentBranch] Found PR #${results[0].number} "${results[0].title}"`);
       return results[0];
     } catch (err) {
-      log(`[getPRForCurrentBranch] gh pr list failed: ${err instanceof Error ? err.message : String(err)}`);
+      log(
+        `[getPRForCurrentBranch] gh pr list failed: ${err instanceof Error ? err.message : String(err)}`
+      );
       return null;
     }
   }
@@ -534,12 +578,18 @@ export class GitHubService {
     await runGh([
       'api',
       `repos/${owner}/${repo}/pulls/${prNumber}/comments`,
-      '--method', 'POST',
-      '-f', `body=${body}`,
-      '-f', `commit_id=${headSha}`,
-      '-f', `path=${filePath}`,
-      '-F', `line=${line}`,
-      '-f', `side=${side}`,
+      '--method',
+      'POST',
+      '-f',
+      `body=${body}`,
+      '-f',
+      `commit_id=${headSha}`,
+      '-f',
+      `path=${filePath}`,
+      '-F',
+      `line=${line}`,
+      '-f',
+      `side=${side}`,
     ]);
   }
 
@@ -555,8 +605,19 @@ export class GitHubService {
       runGh(['api', `repos/${owner}/${repo}/pulls/${prNumber}/reviews?per_page=100`]),
     ]);
 
-    type IssueComment = { id: number; user: { login: string; avatar_url?: string }; body: string; created_at: string };
-    type Review = { id: number; user: { login: string; avatar_url?: string }; body: string; submitted_at: string; state: string };
+    type IssueComment = {
+      id: number;
+      user: { login: string; avatar_url?: string };
+      body: string;
+      created_at: string;
+    };
+    type Review = {
+      id: number;
+      user: { login: string; avatar_url?: string };
+      body: string;
+      submitted_at: string;
+      state: string;
+    };
 
     const issueComments: GhDiscussionComment[] = (JSON.parse(issueRaw) as IssueComment[])
       .filter((c) => c.body?.trim())

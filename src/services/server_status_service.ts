@@ -77,7 +77,10 @@ export class ServerStatusService {
     if (this.esTerminal) {
       this.esTerminal.dispose();
     }
-    this.esTerminal = vscode.window.createTerminal({ name: '⚡ Elasticsearch', cwd: workspaceRoot });
+    this.esTerminal = vscode.window.createTerminal({
+      name: '⚡ Elasticsearch',
+      cwd: workspaceRoot,
+    });
     this.esTerminal.show(true);
     this.esTerminal.sendText('yarn es snapshot');
   }
@@ -100,10 +103,7 @@ export class ServerStatusService {
   }
 
   private async poll(): Promise<void> {
-    const [esOpen, kibanaOpen] = await Promise.all([
-      isPortOpen(ES_PORT),
-      isPortOpen(KIBANA_PORT),
-    ]);
+    const [esOpen, kibanaOpen] = await Promise.all([isPortOpen(ES_PORT), isPortOpen(KIBANA_PORT)]);
 
     const newEs: ServerStatus = esOpen ? 'running' : 'stopped';
 

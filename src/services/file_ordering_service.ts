@@ -48,8 +48,7 @@ const HEURISTIC_TIERS: Array<{ tier: number; group: string; test: (path: string)
     tier: 3,
     group: 'Supporting / utility',
     test: (path) =>
-      /\.(ts|tsx|js|jsx)$/.test(path) &&
-      !/\.(test|spec)\.(ts|tsx|js|jsx)$/.test(path),
+      /\.(ts|tsx|js|jsx)$/.test(path) && !/\.(test|spec)\.(ts|tsx|js|jsx)$/.test(path),
   },
   {
     tier: 4,
@@ -134,11 +133,7 @@ interface LlmOrderedFile {
   group: string;
 }
 
-async function callOpenAI(
-  apiKey: string,
-  model: string,
-  prompt: string
-): Promise<string> {
+async function callOpenAI(apiKey: string, model: string, prompt: string): Promise<string> {
   const body = JSON.stringify({
     model,
     messages: [{ role: 'user', content: prompt }],
@@ -184,11 +179,7 @@ async function callOpenAI(
   });
 }
 
-async function callAnthropic(
-  apiKey: string,
-  model: string,
-  prompt: string
-): Promise<string> {
+async function callAnthropic(apiKey: string, model: string, prompt: string): Promise<string> {
   const body = JSON.stringify({
     model,
     max_tokens: 4096,
@@ -235,11 +226,7 @@ async function callAnthropic(
   });
 }
 
-function buildOrderingPrompt(
-  prTitle: string,
-  prBody: string,
-  filePaths: string[]
-): string {
+function buildOrderingPrompt(prTitle: string, prBody: string, filePaths: string[]): string {
   const truncatedBody = prBody.length > 1000 ? `${prBody.slice(0, 1000)}...` : prBody;
   return [
     'You are a code reviewer helping to organize a GitHub PR review.',
@@ -334,10 +321,7 @@ export class FileOrderingService {
     return this.parseLlmResponse(rawResponse, files);
   }
 
-  private parseLlmResponse(
-    rawResponse: string,
-    originalFiles: GhPullRequestFile[]
-  ): OrderedFile[] {
+  private parseLlmResponse(rawResponse: string, originalFiles: GhPullRequestFile[]): OrderedFile[] {
     let parsed: { order?: LlmOrderedFile[] };
     try {
       const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);

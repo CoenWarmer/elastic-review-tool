@@ -1,0 +1,19 @@
+{
+  // ESLint runs Prettier internally via eslint-plugin-prettier, so it is the
+  // single source of truth for both lint errors and formatting.
+  "editor.formatOnSave": false,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "eslint.validate": ["typescript", "typescriptreact", "javascript"],
+
+  // JSON and CSS are not covered by ESLint, so keep Prettier as their formatter.
+  "[json]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[css]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
+}

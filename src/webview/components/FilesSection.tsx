@@ -22,9 +22,17 @@ interface Props {
 }
 
 export function FilesSection({
-  files, activeFile, reviewedPaths, ownedByMePaths,
-  isLoading, errorMessage, suggestedOrder, orderMode, isOrderLoading,
-  previewFiles, isCheckedOut,
+  files,
+  activeFile,
+  reviewedPaths,
+  ownedByMePaths,
+  isLoading,
+  errorMessage,
+  suggestedOrder,
+  orderMode,
+  isOrderLoading,
+  previewFiles,
+  isCheckedOut,
 }: Props) {
   const [search, setSearch] = useState('');
   const [showOwnedByMe, setShowOwnedByMe] = useState(false);
@@ -36,9 +44,8 @@ export function FilesSection({
   }, [ownedByMePaths]);
 
   const total = files.length || (previewFiles?.length ?? 0);
-  const visible = showOwnedByMe && ownedByMePaths
-    ? files.filter((f) => ownedByMePaths.includes(f.path))
-    : files;
+  const visible =
+    showOwnedByMe && ownedByMePaths ? files.filter((f) => ownedByMePaths.includes(f.path)) : files;
   const hasSuggestion = suggestedOrder !== null;
 
   // When not checked out but we have preview files, show them under an overlay.
@@ -54,7 +61,9 @@ export function FilesSection({
               const fileName = f.path.split('/').pop() ?? f.path;
               return (
                 <div key={f.path} className="file-row">
-                  <span className="cf-file-name" title={f.path}>{fileName}</span>
+                  <span className="cf-file-name" title={f.path}>
+                    {fileName}
+                  </span>
                   <span className="cf-stats">
                     {f.additions > 0 && <span className="cf-adds">+{f.additions}</span>}
                     {f.deletions > 0 && <span className="cf-dels">-{f.deletions}</span>}
@@ -73,7 +82,11 @@ export function FilesSection({
 
   let body: React.ReactNode;
   if (isLoading) {
-    body = <div className="cf-status"><Spinner className="spinner-mr" /> Loading…</div>;
+    body = (
+      <div className="cf-status">
+        <Spinner className="spinner-mr" /> Loading…
+      </div>
+    );
   } else if (errorMessage) {
     body = <div className="cf-status error">✕ {errorMessage}</div>;
   } else if (files.length === 0) {
@@ -101,11 +114,7 @@ export function FilesSection({
     } else {
       const tree = cfCompactFolders(cfBuildTree(filtered));
       fileListNode = (
-        <TreeChildren
-          children={tree.children}
-          activeFile={activeFile}
-          reviewedSet={reviewedSet}
-        />
+        <TreeChildren children={tree.children} activeFile={activeFile} reviewedSet={reviewedSet} />
       );
     }
 
@@ -128,8 +137,8 @@ export function FilesSection({
                 ownedByMePaths === null
                   ? 'Computing owned files…'
                   : showOwnedByMe
-                  ? 'Show all files'
-                  : 'Show only files I own'
+                    ? 'Show all files'
+                    : 'Show only files I own'
               }
               disabled={ownedByMePaths === null}
               onClick={() => setShowOwnedByMe((v) => !v)}
@@ -144,7 +153,13 @@ export function FilesSection({
               title="Ask an LLM to suggest the best review order for these files"
               onClick={() => postMessage({ type: 'suggestOrder' })}
             >
-              {isOrderLoading ? <><Spinner className="spinner-mr" /> Analyzing…</> : '✦ Suggest review order'}
+              {isOrderLoading ? (
+                <>
+                  <Spinner className="spinner-mr" /> Analyzing…
+                </>
+              ) : (
+                '✦ Suggest review order'
+              )}
             </button>
             <div className="order-mode-toggle">
               {(['default', 'top-down', 'bottom-up'] as OrderMode[]).map((mode) => (
@@ -154,15 +169,17 @@ export function FilesSection({
                   disabled={mode !== 'default' && !hasSuggestion}
                   onClick={() => postMessage({ type: 'setOrderMode', mode })}
                 >
-                  {mode === 'default' ? 'Default' : mode === 'top-down' ? '↓ Top-down' : '↑ Bottom-up'}
+                  {mode === 'default'
+                    ? 'Default'
+                    : mode === 'top-down'
+                      ? '↓ Top-down'
+                      : '↑ Bottom-up'}
                 </button>
               ))}
             </div>
           </div>
         </div>
-        <div className="cf-file-list">
-          {fileListNode}
-        </div>
+        <div className="cf-file-list">{fileListNode}</div>
       </>
     );
   }
@@ -172,15 +189,23 @@ export function FilesSection({
       <div className="section-header">
         <span className="section-title">Changed Files{total > 0 ? ` (${total})` : ''}</span>
       </div>
-      <div className="cf-file-list-wrapper">
-        {body}
-      </div>
+      <div className="cf-file-list-wrapper">{body}</div>
     </>
   );
 }
 
-function OrderedFileRow({ file, reason, num, isActive, isReviewed }: {
-  file: OrderedFile; reason: string; num: number; isActive: boolean; isReviewed: boolean;
+function OrderedFileRow({
+  file,
+  reason,
+  num,
+  isActive,
+  isReviewed,
+}: {
+  file: OrderedFile;
+  reason: string;
+  num: number;
+  isActive: boolean;
+  isReviewed: boolean;
 }) {
   const status = normalizeFileStatus(file);
   const { icon, colorClass } = cfStatusIcon(status);
@@ -203,7 +228,9 @@ function OrderedFileRow({ file, reason, num, isActive, isReviewed }: {
           onClick={(e) => e.stopPropagation()}
         />
         <span className="ordered-num">{num}</span>
-        <span className={`status-icon ${colorClass}`} title={status}>{icon}</span>
+        <span className={`status-icon ${colorClass}`} title={status}>
+          {icon}
+        </span>
         <span className="cf-file-name">{file.path}</span>
         <span className="cf-stats">
           {file.additions > 0 && <span className="cf-adds">+{file.additions}</span>}
@@ -215,8 +242,14 @@ function OrderedFileRow({ file, reason, num, isActive, isReviewed }: {
   );
 }
 
-function TreeChildren({ children, activeFile, reviewedSet }: {
-  children: CfTreeChild[]; activeFile: string | null; reviewedSet: Set<string>;
+function TreeChildren({
+  children,
+  activeFile,
+  reviewedSet,
+}: {
+  children: CfTreeChild[];
+  activeFile: string | null;
+  reviewedSet: Set<string>;
 }): ReactElement {
   return (
     <>
@@ -238,7 +271,11 @@ function TreeChildren({ children, activeFile, reviewedSet }: {
               <span className="fold-name">{child.name}</span>
             </summary>
             <div className="folder-contents">
-              <TreeChildren children={child.children} activeFile={activeFile} reviewedSet={reviewedSet} />
+              <TreeChildren
+                children={child.children}
+                activeFile={activeFile}
+                reviewedSet={reviewedSet}
+              />
             </div>
           </details>
         );
@@ -247,7 +284,15 @@ function TreeChildren({ children, activeFile, reviewedSet }: {
   );
 }
 
-function FileRow({ file, isActive, isReviewed }: { file: OrderedFile; isActive: boolean; isReviewed: boolean }) {
+function FileRow({
+  file,
+  isActive,
+  isReviewed,
+}: {
+  file: OrderedFile;
+  isActive: boolean;
+  isReviewed: boolean;
+}) {
   const status = normalizeFileStatus(file);
   const { icon, colorClass } = cfStatusIcon(status);
   const fileName = file.path.split('/').pop() ?? file.path;
@@ -268,7 +313,9 @@ function FileRow({ file, isActive, isReviewed }: { file: OrderedFile; isActive: 
         }}
         onClick={(e) => e.stopPropagation()}
       />
-      <span className={`status-icon ${colorClass}`} title={status}>{icon}</span>
+      <span className={`status-icon ${colorClass}`} title={status}>
+        {icon}
+      </span>
       <span className="cf-file-name">{fileName}</span>
       <span className="cf-stats">
         {file.additions > 0 && <span className="cf-adds">+{file.additions}</span>}
