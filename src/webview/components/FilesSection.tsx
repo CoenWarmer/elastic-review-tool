@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { ReactElement } from 'react';
 import { postMessage } from '../vscode';
 import { cfBuildTree, cfCompactFolders, cfStatusIcon, normalizeFileStatus } from '../utils';
@@ -50,34 +50,7 @@ export function FilesSection({
 
   // When not checked out but we have preview files, show them under an overlay.
   if (!isCheckedOut && files.length === 0 && previewFiles && previewFiles.length > 0) {
-    return (
-      <>
-        <div className="section-header">
-          <span className="section-title">Changed Files ({previewFiles.length})</span>
-        </div>
-        <div className="cf-file-list-wrapper cf-locked">
-          <div className="cf-file-list">
-            {previewFiles.map((f) => {
-              const fileName = f.path.split('/').pop() ?? f.path;
-              return (
-                <div key={f.path} className="file-row">
-                  <span className="cf-file-name" title={f.path}>
-                    {fileName}
-                  </span>
-                  <span className="cf-stats">
-                    {f.additions > 0 && <span className="cf-adds">+{f.additions}</span>}
-                    {f.deletions > 0 && <span className="cf-dels">-{f.deletions}</span>}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="cf-locked-overlay">
-            <span className="cf-locked-message">Check out branch to see files in IDE</span>
-          </div>
-        </div>
-      </>
-    );
+    return <PreviewFileList previewFiles={previewFiles} />;
   }
 
   let body: React.ReactNode;
@@ -322,5 +295,61 @@ function FileRow({
         {file.deletions > 0 && <span className="cf-dels">-{file.deletions}</span>}
       </span>
     </div>
+  );
+}
+
+const PREVIEW_MAX_HEIGHT = 500;
+
+function PreviewFileList({ previewFiles }: { previewFiles: GhPrFile[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setExpanded(false);
+    const id = requestAnimationFrame(() => {
+      if (listRef.current) {
+        setOverflows(listRef.current.scrollHeight > PREVIEW_MAX_HEIGHT);
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [previewFiles.length]);
+
+  return (
+    <>
+      <div className="section-header">
+        <span className="section-title">Changed Files ({previewFiles.length})</span>
+      </div>
+      <div
+        ref={listRef}
+        className="cf-file-list-wrapper cf-locked"
+        style={expanded ? undefined : { maxHeight: PREVIEW_MAX_HEIGHT, overflow: 'hidden' }}
+      >
+        <div className="cf-file-list">
+          {previewFiles.map((f) => {
+            const fileName = f.path.split('/').pop() ?? f.path;
+            return (
+              <div key={f.path} className="file-row">
+                <span className="cf-file-name" title={f.path}>
+                  {fileName}
+                </span>
+                <span className="cf-stats">
+                  {f.additions > 0 && <span className="cf-adds">+{f.additions}</span>}
+                  {f.deletions > 0 && <span className="cf-dels">-{f.deletions}</span>}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="cf-locked-overlay">
+          <span className="cf-locked-message">Check out branch to see files in IDE</span>
+        </div>
+      </div>
+      {overflows && !expanded && (
+        <button className="pr-header-see-all" onClick={() => setExpanded(true)}>
+          See all {previewFiles.length} files
+        </button>
+      )}
+    </>
   );
 }

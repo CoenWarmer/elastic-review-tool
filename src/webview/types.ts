@@ -120,6 +120,7 @@ export interface AppState {
   // Misc
   checkedOutPrNumber: number | null;
   currentUserLogin: string;
+  currentBranch: string | null;
   repo: string;
   /** True when the open workspace is not the Kibana repository. Shows a placeholder instead of the normal UI. */
   wrongRepo: boolean;

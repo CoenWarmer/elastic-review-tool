@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { postMessage } from '../vscode';
 import { ageLabel, extractBuildkiteSummary, isBot, type BuildkiteSummaryItem } from '../utils';
 import { MarkdownBody } from './MarkdownBody';
@@ -30,6 +31,7 @@ type ReviewingPaneProps = Pick<
   | 'synthtraceScenarios'
 > & {
   commentPosted: boolean;
+  currentBranch: string | null;
   reviewSubmitted: { event: 'APPROVE' | 'REQUEST_CHANGES' } | null;
   onClearFeedback: () => void;
 };
@@ -41,6 +43,7 @@ export function ReviewingPane({
   esStatus,
   kibanaStatus,
   checkedOutPrNumber,
+  currentBranch,
   commentPosted,
   reviewSubmitted,
   onClearFeedback,
@@ -66,7 +69,11 @@ export function ReviewingPane({
   if (!currentPr) {
     return (
       <div className="reviewing-empty">
-        <p>Click a PR in the Review Queue to see its description here.</p>
+        <p>
+          You're on branch <code>{currentBranch ?? 'unknown'}</code> which looks like it's not part
+          of a PR.
+        </p>
+        <p>Select a PR from the Review Queue to see its description here.</p>
       </div>
     );
   }
@@ -132,6 +139,8 @@ export function ReviewingPane({
   );
 }
 
+const PR_HEADER_MAX_HEIGHT = 370;
+
 function PrHeader({
   pr,
   ciBuilds,
@@ -148,50 +157,78 @@ function PrHeader({
   | 'cfFiles'
   | 'cfOwnedByMePaths'
 >) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const innerRef = useRef<HTMLDivElement>(null);
+
+  // Measure after mount and whenever the PR changes.
+  useEffect(() => {
+    setExpanded(false);
+    // Read on next frame so the DOM has been painted.
+    const id = requestAnimationFrame(() => {
+      if (innerRef.current) {
+        setOverflows(innerRef.current.scrollHeight > PR_HEADER_MAX_HEIGHT);
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [pr.number]);
+
   return (
     <>
-      <h2 className="pr-desc-title">
-        <a href={pr.url} target="_blank" rel="noreferrer" className="pr-num">
-          #{pr.number}
-        </a>{' '}
-        {pr.title}
-      </h2>
+      <div
+        ref={innerRef}
+        className="pr-header-collapsible"
+        style={expanded ? undefined : { maxHeight: PR_HEADER_MAX_HEIGHT, overflow: 'hidden' }}
+      >
+        <h2 className="pr-desc-title">
+          <a href={pr.url} target="_blank" rel="noreferrer" className="pr-num">
+            #{pr.number}
+          </a>{' '}
+          {pr.title}
+        </h2>
 
-      <div className="pr-info">
-        <div className="info-row">
-          <span className="label">Author</span>
-          <span>{pr.author.login}</span>
-        </div>
-        <div className="info-row">
-          <span className="label">Branch</span>
-          <code>{pr.headRefName}</code>
-        </div>
+        <div className="pr-info">
+          <div className="info-row">
+            <span className="label">Author</span>
+            <span>{pr.author.login}</span>
+          </div>
+          <div className="info-row">
+            <span className="label">Branch</span>
+            <code>{pr.headRefName}</code>
+          </div>
 
-        <div className="info-row">
-          <span className="label">Build</span>
-          {ciBuildsLoading ? (
-            <Spinner />
-          ) : ciBuilds.length > 0 ? (
-            ciBuilds.map((b) => (
-              <span className="ci-status" key={b.pipelineName}>
-                <span className={`bk-icon ${b.cls}`}>{b.icon}</span>{' '}
-                <a href={b.url} className="bk-link">
-                  #{b.buildNumber}
-                </a>{' '}
-              </span>
-            ))
-          ) : (
-            <span className="info-empty">—</span>
-          )}
-        </div>
+          <div className="info-row">
+            <span className="label">Build</span>
+            {ciBuildsLoading ? (
+              <Spinner />
+            ) : ciBuilds.length > 0 ? (
+              ciBuilds.map((b) => (
+                <span className="ci-status" key={b.pipelineName}>
+                  <span className={`bk-icon ${b.cls}`}>{b.icon}</span>{' '}
+                  <a href={b.url} className="bk-link">
+                    #{b.buildNumber}
+                  </a>{' '}
+                </span>
+              ))
+            ) : (
+              <span className="info-empty">—</span>
+            )}
+          </div>
 
-        <FileOwnershipRow
-          cfFiles={cfFiles}
-          cfOwnedByMePaths={cfOwnedByMePaths}
-          previewFiles={pr.files}
-        />
-        <TeamsTable pr={pr} />
+          <FileOwnershipRow
+            cfFiles={cfFiles}
+            cfOwnedByMePaths={cfOwnedByMePaths}
+            previewFiles={pr.files}
+          />
+          <TeamsTable pr={pr} />
+        </div>
       </div>
+
+      {overflows && !expanded && (
+        <button className="pr-header-see-all" onClick={() => setExpanded(true)}>
+          See all
+        </button>
+      )}
     </>
   );
 }

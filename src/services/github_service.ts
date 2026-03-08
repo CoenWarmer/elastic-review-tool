@@ -268,18 +268,58 @@ export class GitHubService {
   }
 
   async getPullRequestFiles(prNumber: number): Promise<GhPullRequestFile[]> {
-    const raw = await runGh([
-      'pr',
-      'view',
-      String(prNumber),
-      '--repo',
-      this.repo,
-      '--json',
-      'files',
-    ]);
+    const [owner, repoName] = this.repo.split('/');
+    return this.fetchPrFiles(owner, repoName, prNumber);
+  }
 
-    const { files } = JSON.parse(raw) as { files: GhPullRequestFile[] };
-    return files;
+  /**
+   * Fetches all pages of a GitHub REST API endpoint that returns a JSON array.
+   *
+   * `gh api --paginate` concatenates raw JSON arrays as `[...][...]` which is
+   * invalid JSON. Using `--jq '.[]'` instead outputs each item on its own line
+   * (NDJSON), which we then parse line-by-line and collect into a single array.
+   */
+  private async fetchAllPages<T>(apiPath: string, perPage = 100): Promise<T[]> {
+    const raw = await runGh([
+      'api',
+      '--paginate',
+      '--jq',
+      '.[]',
+      `${apiPath}?per_page=${perPage}`,
+    ]);
+    return raw
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as T);
+  }
+
+  /**
+   * Fetches all pages of PR files from the REST API and normalises the shape.
+   *
+   * The REST API returns `filename` instead of `path` (the GraphQL field name).
+   * We remap it here so the rest of the codebase can use `path` consistently.
+   */
+  private async fetchPrFiles(
+    owner: string,
+    repoName: string,
+    prNumber: number
+  ): Promise<GhPullRequestFile[]> {
+    interface RestFile {
+      filename: string;
+      additions: number;
+      deletions: number;
+      status?: string;
+    }
+    const items = await this.fetchAllPages<RestFile>(
+      `repos/${owner}/${repoName}/pulls/${prNumber}/files`
+    );
+    return items.map((f) => ({
+      path: f.filename,
+      additions: f.additions,
+      deletions: f.deletions,
+      status: f.status,
+    }));
   }
 
   async getPullRequestDetail(prNumber: number): Promise<GhPullRequestDetail> {
@@ -290,7 +330,7 @@ export class GitHubService {
     // Issue events give us the FULL history of review_requested events — teams
     // that have already reviewed are removed from `reviewRequests` by GitHub,
     // but their review_requested event is permanent.
-    const [prRaw, eventsRaw] = await Promise.all([
+    const [prRaw, eventsRaw, filesRaw] = await Promise.all([
       runGh([
         'pr',
         'view',
@@ -298,7 +338,8 @@ export class GitHubService {
         '--repo',
         this.repo,
         '--json',
-        'number,title,body,isDraft,additions,deletions,createdAt,headRefName,baseRefName,reviewRequests,reviewDecision,author,url,files,latestReviews',
+        // `files` intentionally omitted — fetched separately via paginated REST API below
+        'number,title,body,isDraft,additions,deletions,createdAt,headRefName,baseRefName,reviewRequests,reviewDecision,author,url,latestReviews',
       ]),
       // Fetch without --jq / --paginate so there are no format or version surprises;
       // parse team slugs from the raw JSON in TypeScript instead.
@@ -310,9 +351,18 @@ export class GitHubService {
           return '[]';
         }
       ),
+      // Fetch all changed files via the paginated REST API.
+      // `gh pr view --json files` silently caps at 100 files; this supports up to 3000.
+      this.fetchPrFiles(owner, repoName, prNumber).catch((err) => {
+        log(
+          `Could not fetch files for PR #${prNumber}: ${err instanceof Error ? err.message : String(err)}`
+        );
+        return [] as GhPullRequestFile[];
+      }),
     ]);
 
     const pr = JSON.parse(prRaw) as GhPullRequestDetail;
+    pr.files = filesRaw;
 
     // Extract bare team slugs from review_requested events.
     interface IssueEvent {

@@ -448,75 +448,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return;
         }
 
-        // Record which file is open so Prev/Next can navigate from it.
-        const allFiles = changedFilesProvider.getCurrentFiles();
-        const idx = allFiles.findIndex((f) => f.path === file.path);
-        if (idx !== -1) {
-          currentFileIndex = idx;
-          log(`[nav] opened file ${idx} "${file.path}"`);
-        }
-
         await openDiff(file, pr, base);
         changedFilesProvider.setActiveFile(file.path);
-        void vscode.commands.executeCommand('setContext', 'kibana-pr-reviewer.prDiffOpen', true);
       }
     )
-  );
-
-  // ─── Prev / Next file navigation ────────────────────────────────────────────
-
-  // Index of the file currently shown in the diff editor.
-  let currentFileIndex: number | null = null;
-
-  // Clear the context key whenever the user switches to a non-PR editor.
-  context.subscriptions.push(
-    vscode.window.onDidChangeActiveTextEditor((editor) => {
-      if (!editor) return;
-      const scheme = editor.document.uri.scheme;
-      const isPrDiff =
-        scheme === 'pr-base' ||
-        (() => {
-          const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-          if (!wsRoot) return false;
-          const rel = vscode.workspace.asRelativePath(editor.document.uri, false);
-          return changedFilesProvider.getCurrentFiles().some((f) => f.path === rel);
-        })();
-      if (!isPrDiff) {
-        void vscode.commands.executeCommand('setContext', 'kibana-pr-reviewer.prDiffOpen', false);
-      }
-    })
-  );
-
-  /** Open the diff for the file at `index` and reset hunk tracking. */
-  async function navigateToFileAt(index: number): Promise<void> {
-    const files = changedFilesProvider.getCurrentFiles();
-    const prNumber = changedFilesProvider.getCurrentPrNumber();
-    const baseCommit = changedFilesProvider.getCurrentBaseCommit();
-    if (files.length === 0 || prNumber === null) return;
-
-    const clamped = Math.max(0, Math.min(index, files.length - 1));
-    currentFileIndex = clamped;
-    log(`[nav] navigating to file ${clamped}: "${files[clamped].path}"`);
-
-    await openDiff(files[clamped], prNumber, baseCommit);
-    void vscode.commands.executeCommand('setContext', 'kibana-pr-reviewer.prDiffOpen', true);
-    changedFilesProvider.setActiveFile(files[clamped].path);
-  }
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand('kibana-pr-reviewer.nextFile', async () => {
-      const files = changedFilesProvider.getCurrentFiles();
-      if (files.length === 0) return;
-      await navigateToFileAt((currentFileIndex ?? -1) + 1);
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand('kibana-pr-reviewer.prevFile', async () => {
-      const files = changedFilesProvider.getCurrentFiles();
-      if (files.length === 0) return;
-      await navigateToFileAt((currentFileIndex ?? 1) - 1);
-    })
   );
 
   // Add inline diff comment
@@ -839,6 +774,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
 
+      // Read the current branch first so we can always populate currentBranch in state.
+      let currentBranchName: string | null = null;
+      try {
+        const { execFile: ef } = await import('child_process');
+        const { promisify: pf } = await import('util');
+        const { stdout } = await pf(ef)('git', ['branch', '--show-current'], {
+          cwd: workspaceCwd,
+        });
+        currentBranchName = stdout.trim() || null;
+      } catch {
+        // git unavailable — leave as null
+      }
+      prPanelProvider.setCurrentBranch(currentBranchName);
+
       log('[restore] Calling gh pr view…');
       const pr = await githubService.getPRForCurrentBranch(workspaceCwd);
       log(
@@ -908,6 +857,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const { promisify } = await import('util');
         const { stdout } = await promisify(execFile)('git', ['branch', '--show-current'], { cwd });
         const currentBranch = stdout.trim();
+
+        prPanelProvider.setCurrentBranch(currentBranch || null);
 
         if (currentBranch && currentBranch !== expectedBranch) {
           log(

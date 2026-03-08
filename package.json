@@ -108,18 +108,6 @@
         "category": "Kibana PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.prevFile",
-        "title": "Previous Diff",
-        "icon": "$(arrow-left)",
-        "category": "Kibana PR Reviewer"
-      },
-      {
-        "command": "kibana-pr-reviewer.nextFile",
-        "title": "Next Diff",
-        "icon": "$(arrow-right)",
-        "category": "Kibana PR Reviewer"
-      },
-      {
         "command": "kibana-pr-reviewer.createNote",
         "title": "Submit",
         "icon": "$(check)",
@@ -144,16 +132,6 @@
           "command": "kibana-pr-reviewer.refresh",
           "when": "view == kibana-pr-reviewer.prPanel",
           "group": "navigation@3"
-        },
-        {
-          "command": "kibana-pr-reviewer.prevFile",
-          "when": "view == kibana-pr-reviewer.prPanel",
-          "group": "navigation@1"
-        },
-        {
-          "command": "kibana-pr-reviewer.nextFile",
-          "when": "view == kibana-pr-reviewer.prPanel",
-          "group": "navigation@2"
         }
       ],
       "editor/context": [
@@ -177,18 +155,7 @@
       ],
       "view/item/context": []
     },
-    "keybindings": [
-      {
-        "command": "kibana-pr-reviewer.nextFile",
-        "key": "alt+]",
-        "mac": "alt+]"
-      },
-      {
-        "command": "kibana-pr-reviewer.prevFile",
-        "key": "alt+[",
-        "mac": "alt+["
-      }
-    ],
+    "keybindings": [],
     "configuration": {
       "title": "Kibana PR Reviewer",
       "properties": {

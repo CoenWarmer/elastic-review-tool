@@ -44,6 +44,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
   private userTeams: string[] = [];
   private teamFilter = '';
   private currentUserLogin = '';
+  private currentBranch: string | null = null;
 
   // Description state
   currentPr?: GhPullRequest;
@@ -271,6 +272,11 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
   setWrongRepo(value: boolean): void {
     this.wrongRepo = value;
     this.sendState({ wrongRepo: value });
+  }
+
+  setCurrentBranch(branch: string | null): void {
+    this.currentBranch = branch;
+    this.sendState({ currentBranch: branch });
   }
 
   setSynthtraceScenarios(scenarios: string[]): void {
@@ -635,6 +641,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
       kibanaStatus: this.kibanaStatus,
       checkedOutPrNumber: this._checkedOutPrNumber,
       currentUserLogin: this.currentUserLogin,
+      currentBranch: this.currentBranch,
       repo: vscode.workspace
         .getConfiguration('kibana-pr-reviewer')
         .get<string>('repo', 'elastic/kibana'),

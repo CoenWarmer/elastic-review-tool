@@ -34,6 +34,7 @@ const initialState: AppState = {
   kibanaStatus: 'stopped',
   checkedOutPrNumber: null,
   currentUserLogin: '',
+  currentBranch: null,
   repo: 'elastic/kibana',
   synthtraceScenarios: [],
   wrongRepo: false,
@@ -126,7 +127,9 @@ export function App() {
       )}
     </>
   );
-  const reviewingLabel = state.currentPr ? `Reviewing #${state.currentPr.number}` : 'My Branch';
+  const reviewingLabel = state.currentPr
+    ? `Reviewing #${state.currentPr.number}`
+    : `My Branch (${state.currentBranch ?? 'unknown'})`;
 
   return (
     <>
@@ -151,6 +154,7 @@ export function App() {
         id="pane-reviewing"
       >
         <ReviewingPane
+          currentBranch={state.currentBranch}
           currentPr={state.currentPr}
           discussionComments={state.discussionComments}
           checkoutBusy={state.checkoutBusy}

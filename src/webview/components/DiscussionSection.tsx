@@ -4,6 +4,21 @@ import { ageLabel } from '../utils';
 import type { GhDiscussionComment } from '../types';
 import { MarkdownBody } from './MarkdownBody';
 
+const HIDDEN_USERS_KEY = 'disc-hidden-users';
+
+function loadHiddenUsers(): Set<string> {
+  try {
+    const raw = localStorage.getItem(HIDDEN_USERS_KEY);
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveHiddenUsers(hidden: Set<string>): void {
+  localStorage.setItem(HIDDEN_USERS_KEY, JSON.stringify([...hidden]));
+}
+
 interface Props {
   comments: GhDiscussionComment[];
   repoUrl: string;
@@ -25,6 +40,39 @@ export function DiscussionSection({
   const [requestBusy, setRequestBusy] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hiddenUsers, setHiddenUsers] = useState<Set<string>>(loadHiddenUsers);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  // Unique commenters ordered by first appearance.
+  const commenters = Array.from(
+    new Map(comments.map((c) => [c.author, { login: c.author, avatarUrl: c.avatarUrl }])).values()
+  );
+
+  const toggleUser = (login: string) => {
+    setHiddenUsers((prev) => {
+      const next = new Set(prev);
+      if (next.has(login)) {
+        next.delete(login);
+      } else {
+        next.add(login);
+      }
+      saveHiddenUsers(next);
+      return next;
+    });
+  };
+
+  // Close dropdown when clicking outside.
+  useEffect(() => {
+    if (!filterOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [filterOpen]);
 
   const showStatus = (msg: string) => {
     setStatusMsg(msg);
@@ -67,16 +115,57 @@ export function DiscussionSection({
     postMessage({ type: 'requestChanges', body });
   };
 
-  const count = comments.length;
+  const visibleComments = comments.filter((c) => !hiddenUsers.has(c.author));
+  const hiddenCount = comments.length - visibleComments.length;
 
   return (
     <>
       <div className="section-header">
-        <span className="section-title">Discussion{count > 0 ? ` (${count})` : ''}</span>
+        <span className="section-title">
+          Discussion
+          {comments.length > 0
+            ? ` (${visibleComments.length}${hiddenCount > 0 ? `/${comments.length}` : ''})`
+            : ''}
+        </span>
+        {commenters.length > 0 && (
+          <div className="disc-filter-wrap" ref={filterRef}>
+            <button
+              className={`disc-filter-btn${hiddenUsers.size > 0 ? ' active' : ''}`}
+              title="Filter by commenter"
+              onClick={() => setFilterOpen((v) => !v)}
+            >
+              Filter&nbsp;
+              {hiddenUsers.size > 0
+                ? `${commenters.length - hiddenUsers.size}/${commenters.length}`
+                : '⊟'}
+            </button>
+            {filterOpen && (
+              <div className="disc-filter-dropdown">
+                {commenters.map(({ login, avatarUrl }) => (
+                  <label key={login} className="disc-filter-row">
+                    <input
+                      type="checkbox"
+                      checked={!hiddenUsers.has(login)}
+                      onChange={() => toggleUser(login)}
+                    />
+                    {avatarUrl ? (
+                      <img className="disc-filter-avatar" src={avatarUrl} alt={login} />
+                    ) : (
+                      <span className="disc-filter-avatar disc-filter-avatar-fallback">
+                        {login.slice(0, 2).toUpperCase()}
+                      </span>
+                    )}
+                    <span className="disc-filter-login">{login}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      {count > 0 && (
+      {visibleComments.length > 0 && (
         <div className="discussion-thread">
-          {comments.map((c) => (
+          {visibleComments.map((c) => (
             <DiscussionComment key={c.id} comment={c} repoUrl={repoUrl} />
           ))}
         </div>
