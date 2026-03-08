@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 let channel: vscode.OutputChannel | undefined;
 
 export function initLogger(context: vscode.ExtensionContext): void {
-  channel = vscode.window.createOutputChannel('Kibana PR Reviewer');
+  channel = vscode.window.createOutputChannel('Elastic PR Reviewer');
   context.subscriptions.push(channel);
 }
 

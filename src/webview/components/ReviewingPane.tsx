@@ -32,6 +32,7 @@ type ReviewingPaneProps = Pick<
 > & {
   commentPosted: boolean;
   currentBranch: string | null;
+  isKibanaRepo: boolean;
   reviewSubmitted: { event: 'APPROVE' | 'REQUEST_CHANGES' } | null;
   onClearFeedback: () => void;
 };
@@ -44,6 +45,7 @@ export function ReviewingPane({
   kibanaStatus,
   checkedOutPrNumber,
   currentBranch,
+  isKibanaRepo,
   commentPosted,
   reviewSubmitted,
   onClearFeedback,
@@ -131,6 +133,7 @@ export function ReviewingPane({
           checkoutStage={checkoutStage}
           esStatus={esStatus}
           kibanaStatus={kibanaStatus}
+          isKibanaRepo={isKibanaRepo}
           synthtraceScenarios={synthtraceScenarios}
           postMessage={postMessage}
         />
@@ -177,7 +180,7 @@ function PrHeader({
     <>
       <div
         ref={innerRef}
-        className="pr-header-collapsible"
+        className={`pr-header-collapsible${overflows && !expanded ? ' pr-header-clipped' : ''}`}
         style={expanded ? undefined : { maxHeight: PR_HEADER_MAX_HEIGHT, overflow: 'hidden' }}
       >
         <h2 className="pr-desc-title">

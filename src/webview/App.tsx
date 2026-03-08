@@ -38,6 +38,7 @@ const initialState: AppState = {
   repo: 'elastic/kibana',
   synthtraceScenarios: [],
   wrongRepo: false,
+  prRestoreComplete: false,
 };
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
@@ -105,16 +106,7 @@ export function App() {
     document.getElementById(paneId)?.scrollTo({ top: 0 });
   }, [state.activeTab]);
 
-  if (state.wrongRepo) {
-    return (
-      <div className="wrong-repo">
-        <p className="wrong-repo-title">Not a Kibana workspace</p>
-        <p className="wrong-repo-body">
-          Open the <code>elastic/kibana</code> repository to use this extension.
-        </p>
-      </div>
-    );
-  }
+  const isKibanaRepo = !state.wrongRepo;
 
   const visiblePrCount = state.allPrs.filter((pr) => !pr.isDraft).length;
   const queueLabel = (
@@ -127,9 +119,11 @@ export function App() {
       )}
     </>
   );
-  const reviewingLabel = state.currentPr
-    ? `Reviewing #${state.currentPr.number}`
-    : `My Branch (${state.currentBranch ?? 'unknown'})`;
+  const reviewingLabel = !state.prRestoreComplete
+    ? '…'
+    : state.currentPr
+      ? `Reviewing #${state.currentPr.number}`
+      : `My Branch (${state.currentBranch ?? 'unknown'})`;
 
   return (
     <>
@@ -155,6 +149,7 @@ export function App() {
       >
         <ReviewingPane
           currentBranch={state.currentBranch}
+          isKibanaRepo={isKibanaRepo}
           currentPr={state.currentPr}
           discussionComments={state.discussionComments}
           checkoutBusy={state.checkoutBusy}

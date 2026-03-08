@@ -109,7 +109,7 @@ function BuildkiteWidgets({ builds }: { builds: BuildkiteSummaryItem[] }) {
       {builds.map((b) => (
         <div className="bk-widget" key={b.pipelineName}>
           <div className="bk-header">
-            <span className="bk-logo">▶</span>
+            <span className="bk-logo">🏭</span>
             <span className="bk-title">Buildkite · {b.pipelineName}</span>
           </div>
           <div className="bk-row">

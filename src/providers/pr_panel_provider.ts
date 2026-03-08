@@ -27,12 +27,13 @@ type InboundMessage =
   | { type: 'openKibana' }
   | { type: 'runSynthtrace'; scenario: string; live: boolean }
   | { type: 'refreshScenarios' }
-  | { type: 'setTeamFilter'; team: string };
+  | { type: 'setTeamFilter'; team: string }
+  | { type: 'openCommit'; sha: string };
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export class PrPanelProvider implements vscode.WebviewViewProvider {
-  static readonly viewId = 'kibana-pr-reviewer.prPanel';
+  static readonly viewId = 'elastic-pr-reviewer.prPanel';
 
   private view?: vscode.WebviewView;
 
@@ -84,6 +85,9 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
 
   // ─── Workspace validity ─────────────────────────────────────────────────────
   private wrongRepo = false;
+
+  // ─── Startup restore ────────────────────────────────────────────────────────
+  private prRestoreComplete = false;
 
   // ─── Synthtrace ──────────────────────────────────────────────────────────────
   private synthtraceScenarios: string[] = [];
@@ -142,6 +146,9 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
   /** Fired when the user clicks the Refresh button in the description pane. */
   onRefreshPR?: (pr: GhPullRequest) => void;
 
+  /** Fired when the user clicks a commit SHA to view it in the IDE. */
+  onOpenCommit?: (sha: string) => void;
+
   constructor(
     private readonly githubService: GitHubService,
     private readonly codeOwnersService: CodeOwnersService,
@@ -179,6 +186,11 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
           if (msg.tab === 'queue' || msg.tab === 'reviewing') {
             this.activeTab = msg.tab;
             this.sendState({ activeTab: this.activeTab });
+            if (msg.tab === 'queue') {
+              void this.refresh();
+            } else if (msg.tab === 'reviewing' && this.currentPr) {
+              this.onRefreshPR?.(this.currentPr);
+            }
           }
           break;
         case 'toggleFilter':
@@ -253,6 +265,9 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
           this.onSetTeamFilter?.(msg.team);
           void this.fetchAndSendTeamMembers(msg.team);
           break;
+        case 'openCommit':
+          this.onOpenCommit?.(msg.sha);
+          break;
       }
     });
 
@@ -279,6 +294,11 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
     this.sendState({ currentBranch: branch });
   }
 
+  setRestoreComplete(): void {
+    this.prRestoreComplete = true;
+    this.sendState({ prRestoreComplete: true });
+  }
+
   setSynthtraceScenarios(scenarios: string[]): void {
     this.synthtraceScenarios = scenarios;
     this.sendState({ synthtraceScenarios: scenarios });
@@ -297,7 +317,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
       return;
     }
     const repo = vscode.workspace
-      .getConfiguration('kibana-pr-reviewer')
+      .getConfiguration('elastic-pr-reviewer')
       .get<string>('repo', 'elastic/kibana');
     const org = repo.split('/')[0];
     const members = await this.githubService.getTeamMemberLogins(org, team);
@@ -387,7 +407,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
     this.sendState({ isLoading: true, errorMessage: '' });
 
     try {
-      const config = vscode.workspace.getConfiguration('kibana-pr-reviewer');
+      const config = vscode.workspace.getConfiguration('elastic-pr-reviewer');
       log(`Config: repo=${config.get('repo')}`);
 
       const [userTeams, currentUserLogin] = await Promise.all([
@@ -403,7 +423,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
       if (userTeams.length === 0) {
         this.allPrs = [];
         this.errorMessage =
-          'No teams detected. Set kibana-pr-reviewer.userTeams in Settings ' +
+          'No teams detected. Set elastic-pr-reviewer.userTeams in Settings ' +
           '(e.g. ["@elastic/obs-onboarding-team"]).';
         this.isLoading = false;
         this.sendState({
@@ -643,10 +663,11 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
       currentUserLogin: this.currentUserLogin,
       currentBranch: this.currentBranch,
       repo: vscode.workspace
-        .getConfiguration('kibana-pr-reviewer')
+        .getConfiguration('elastic-pr-reviewer')
         .get<string>('repo', 'elastic/kibana'),
       synthtraceScenarios: this.synthtraceScenarios,
       wrongRepo: this.wrongRepo,
+      prRestoreComplete: this.prRestoreComplete,
     };
   }
 

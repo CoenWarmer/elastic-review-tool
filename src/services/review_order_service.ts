@@ -299,7 +299,7 @@ export async function suggestReviewOrder(
   }
 
   // ── 2. Fall back to a configured API key ─────────────────────────────────────
-  const config = vscode.workspace.getConfiguration('kibana-pr-reviewer');
+  const config = vscode.workspace.getConfiguration('elastic-pr-reviewer');
   const provider = config.get<string>('llmProvider') ?? 'none';
   const apiKey = config.get<string>('llmApiKey') ?? '';
   const modelOverride = config.get<string>('llmModel') ?? '';
@@ -325,19 +325,19 @@ export async function suggestReviewOrder(
   if (provider !== 'none' && !apiKey) {
     hint =
       `"llmProvider" is set to "${provider}" but "llmApiKey" is empty.\n` +
-      `Add your key under kibana-pr-reviewer.llmApiKey in Settings.`;
+      `Add your key under elastic-pr-reviewer.llmApiKey in Settings.`;
   } else if (isCursor) {
     hint =
       `You are running Cursor, which does not yet expose its built-in AI to third-party extensions.\n\n` +
       `To enable this feature, add an OpenAI API key:\n` +
       `  1. Get a key at platform.openai.com/api-keys\n` +
-      `  2. Set kibana-pr-reviewer.llmProvider → "openai"\n` +
-      `  3. Set kibana-pr-reviewer.llmApiKey → your key\n\n` +
+      `  2. Set elastic-pr-reviewer.llmProvider → "openai"\n` +
+      `  3. Set elastic-pr-reviewer.llmApiKey → your key\n\n` +
       `Click "Open Settings" in this notification to configure.`;
   } else {
     hint =
-      `Set kibana-pr-reviewer.llmProvider to "openai" or "anthropic" and add your API key ` +
-      `in kibana-pr-reviewer.llmApiKey. Click "Open Settings" to configure.`;
+      `Set elastic-pr-reviewer.llmProvider to "openai" or "anthropic" and add your API key ` +
+      `in elastic-pr-reviewer.llmApiKey. Click "Open Settings" to configure.`;
   }
 
   throw new Error(hint);

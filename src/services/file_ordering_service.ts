@@ -252,7 +252,7 @@ export class FileOrderingService {
     prTitle: string,
     prBody: string
   ): Promise<OrderedFile[]> {
-    const config = vscode.workspace.getConfiguration('kibana-pr-reviewer');
+    const config = vscode.workspace.getConfiguration('elastic-pr-reviewer');
     const provider = config.get<string>('llmProvider', 'none');
 
     if (provider === 'none') {
@@ -263,7 +263,7 @@ export class FileOrderingService {
       return await this.orderWithLlm(files, prTitle, prBody, provider);
     } catch (err) {
       void vscode.window.showWarningMessage(
-        `Kibana PR Reviewer: LLM ordering failed, falling back to heuristics. ${
+        `Elastic PR Reviewer: LLM ordering failed, falling back to heuristics. ${
           err instanceof Error ? err.message : String(err)
         }`
       );
@@ -276,12 +276,12 @@ export class FileOrderingService {
     prTitle: string,
     prBody: string
   ): Promise<OrderedFile[]> {
-    const config = vscode.workspace.getConfiguration('kibana-pr-reviewer');
+    const config = vscode.workspace.getConfiguration('elastic-pr-reviewer');
     const provider = config.get<string>('llmProvider', 'none');
 
     if (provider === 'none') {
       void vscode.window.showInformationMessage(
-        'Kibana PR Reviewer: Set kibana-pr-reviewer.llmProvider to "openai" or "anthropic" and add an API key to use LLM ordering.'
+        'Elastic PR Reviewer: Set elastic-pr-reviewer.llmProvider to "openai" or "anthropic" and add an API key to use LLM ordering.'
       );
       return orderByHeuristic(files);
     }
@@ -295,14 +295,14 @@ export class FileOrderingService {
     prBody: string,
     provider: string
   ): Promise<OrderedFile[]> {
-    const apiKey = await this.context.secrets.get('kibana-pr-reviewer.llmApiKey');
+    const apiKey = await this.context.secrets.get('elastic-pr-reviewer.llmApiKey');
     if (!apiKey) {
       throw new Error(
-        'No LLM API key found. Run "Kibana PR Reviewer: Set LLM API Key" from the command palette.'
+        'No LLM API key found. Run "Elastic PR Reviewer: Set LLM API Key" from the command palette.'
       );
     }
 
-    const config = vscode.workspace.getConfiguration('kibana-pr-reviewer');
+    const config = vscode.workspace.getConfiguration('elastic-pr-reviewer');
     const modelOverride = config.get<string>('llmModel', '');
     const filePaths = files.map((f) => f.path);
     const prompt = buildOrderingPrompt(prTitle, prBody, filePaths);

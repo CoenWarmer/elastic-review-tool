@@ -16,7 +16,7 @@ export async function openDiff(
 ): Promise<void> {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
   if (!workspaceRoot) {
-    void vscode.window.showErrorMessage('Kibana PR Reviewer: No workspace folder open.');
+    void vscode.window.showErrorMessage('Elastic PR Reviewer: No workspace folder open.');
     return;
   }
 
@@ -63,20 +63,49 @@ import { promisify } from 'util';
 const execFileAsync = promisify(execFile);
 
 /**
- * Provides the content of files at a specific git commit.
- * Registered under the `pr-base` URI scheme.
+ * Provides virtual document content for the `pr-base` URI scheme.
+ *
+ * Authority values (all lowercase — VS Code lowercases authority):
+ *   `empty`        → empty string (left side for added-file diffs)
+ *   `commit-base`  → path = `/<sha>/<encoded-file>` → `git show <sha>^:<file>` (parent version)
+ *   `commit-head`  → path = `/<sha>/<encoded-file>` → `git show <sha>:<file>`  (commit version)
+ *   otherwise      → authority = base commit SHA, path = file path (existing PR diff use-case)
  */
 export class GitBaseContentProvider implements vscode.TextDocumentContentProvider {
   async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
+    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!cwd) return '';
+
     if (uri.authority === 'empty') {
       return '';
     }
 
-    const commit = decodeURIComponent(uri.authority);
-    const filePath = decodeURIComponent(uri.path.slice(1)); // strip leading /
-    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (uri.authority === 'commit-base' || uri.authority === 'commit-head') {
+      // Path format: /<sha>/<encodeURIComponent(filePath)>
+      // encodeURIComponent encodes '/' as '%2F', so the only real '/' after the
+      // leading one is the separator between sha and the encoded file path.
+      const sep = uri.path.indexOf('/', 1);
+      const sha = uri.path.slice(1, sep);
+      const filePath = decodeURIComponent(uri.path.slice(sep + 1));
+      const ref =
+        uri.authority === 'commit-base'
+          ? `${sha}^:${filePath}` // parent commit
+          : `${sha}:${filePath}`; // this commit
+      try {
+        const { stdout } = await execFileAsync('git', ['show', ref], {
+          cwd,
+          maxBuffer: 10 * 1024 * 1024,
+          encoding: 'utf8',
+        });
+        return stdout;
+      } catch {
+        return ''; // added (no parent) or deleted (no head) — show empty side
+      }
+    }
 
-    if (!cwd) return '';
+    // Existing PR diff use-case: authority = base commit, path = file path.
+    const commit = decodeURIComponent(uri.authority);
+    const filePath = decodeURIComponent(uri.path.slice(1));
 
     try {
       const { stdout } = await execFileAsync('git', ['show', `${commit}:${filePath}`], {
@@ -86,9 +115,99 @@ export class GitBaseContentProvider implements vscode.TextDocumentContentProvide
       });
       return stdout;
     } catch (err) {
-      // File might have been added (not in base) or commit SHA is unavailable
       const message = err instanceof Error ? err.message : String(err);
       return `// Could not load base content for ${filePath} at ${commit}\n// ${message}`;
     }
   }
+}
+
+/**
+ * Opens a QuickPick with all files changed in the given commit. When the user
+ * selects a file, opens a side-by-side diff of parent vs commit version.
+ */
+export async function openCommitInIde(sha: string): Promise<void> {
+  const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!cwd) {
+    void vscode.window.showErrorMessage('Elastic PR Reviewer: No workspace folder open.');
+    return;
+  }
+
+  let diffTreeOut: string;
+  try {
+    const result = await execFileAsync(
+      'git',
+      ['diff-tree', '--no-commit-id', '-r', '--name-status', sha],
+      { cwd, encoding: 'utf8' }
+    );
+    diffTreeOut = result.stdout;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    void vscode.window.showErrorMessage(`Could not read commit ${sha}: ${message}`);
+    return;
+  }
+
+  type FileEntry = { status: string; before: string; after: string };
+  const statusIcons: Record<string, string> = {
+    A: '$(diff-added)',
+    M: '$(diff-modified)',
+    D: '$(diff-removed)',
+    R: '$(diff-renamed)',
+    C: '$(copy)',
+  };
+
+  const files: FileEntry[] = diffTreeOut
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split('\t');
+      const status = parts[0][0];
+      if (status === 'R' || status === 'C') {
+        return { status, before: parts[1], after: parts[2] };
+      }
+      return { status, before: parts[1], after: parts[1] };
+    });
+
+  if (files.length === 0) {
+    void vscode.window.showInformationMessage(`No file changes found in commit ${sha}.`);
+    return;
+  }
+
+  const items = files.map((f) => ({
+    label: `${statusIcons[f.status] ?? '$(file)'} ${f.after}`,
+    description: f.status === 'R' ? `renamed from ${f.before}` : undefined,
+    file: f,
+  }));
+
+  const pick =
+    items.length === 1
+      ? items[0]
+      : await vscode.window.showQuickPick(items, {
+          title: `Files changed in ${sha}`,
+          placeHolder: 'Select a file to diff',
+          matchOnDescription: true,
+        });
+
+  if (!pick) return;
+
+  const { file } = pick;
+
+  // Before side: parent version (empty for added files)
+  const beforeUri =
+    file.status === 'A'
+      ? vscode.Uri.parse(`pr-base://empty/${encodeURIComponent(file.before)}`)
+      : vscode.Uri.parse(
+          `pr-base://commit-base/${sha}/${encodeURIComponent(file.before)}`
+        );
+
+  // After side: commit version (empty for deleted files)
+  const afterUri =
+    file.status === 'D'
+      ? vscode.Uri.parse(`pr-base://empty/${encodeURIComponent(file.after)}`)
+      : vscode.Uri.parse(
+          `pr-base://commit-head/${sha}/${encodeURIComponent(file.after)}`
+        );
+
+  const title = `${sha}: ${path.basename(file.after)}`;
+  await vscode.commands.executeCommand('vscode.diff', beforeUri, afterUri, title);
 }

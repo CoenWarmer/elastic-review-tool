@@ -134,7 +134,7 @@ export function DiscussionSection({
               title="Filter by commenter"
               onClick={() => setFilterOpen((v) => !v)}
             >
-              Filter&nbsp;
+              Filter{' '}
               {hiddenUsers.size > 0
                 ? `${commenters.length - hiddenUsers.size}/${commenters.length}`
                 : '⊟'}
@@ -214,6 +214,35 @@ function DiscussionComment({
   comment: GhDiscussionComment;
   repoUrl: string;
 }) {
+  if (c.kind === 'commit') {
+    const firstLine = c.body.split('\n')[0];
+    return (
+      <div className="disc-commit">
+        <span className="disc-avatar disc-avatar-sm">
+          {c.avatarUrl ? (
+            <img src={c.avatarUrl} alt={c.author} />
+          ) : (
+            c.author.slice(0, 2).toUpperCase()
+          )}
+        </span>
+        <span className="disc-commit-author">{c.author}</span>
+        <span className="disc-commit-label">pushed</span>
+        <button
+          className="disc-commit-sha"
+          title={`Open commit ${c.commitSha} in IDE`}
+          onClick={() => postMessage({ type: 'openCommit', sha: c.commitSha! })}
+        >
+          {c.commitSha}
+        </button>
+        <span className="disc-commit-msg-wrap">
+          <span className="disc-commit-msg">{firstLine}</span>
+          {c.body !== firstLine && <span className="disc-commit-tooltip">{c.body}</span>}
+        </span>
+        <span className="disc-age disc-commit-age">{ageLabel(c.createdAt)}</span>
+      </div>
+    );
+  }
+
   const reviewBadge =
     c.kind === 'review' && c.reviewState && c.reviewState !== 'COMMENTED' ? (
       <span className={`disc-review-badge disc-${c.reviewState.toLowerCase()}`}>

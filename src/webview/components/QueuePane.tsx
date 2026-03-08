@@ -61,8 +61,8 @@ const BUCKETS: { key: Bucket; label: string }[] = [
   { key: 'approved', label: 'Approved' },
 ];
 
-const SEEN_KEY = 'kibana-pr-reviewer.seenPrs';
-const SHOW_OWN_KEY = 'kibana-pr-reviewer.showOwnPrs';
+const SEEN_KEY = 'elastic-pr-reviewer.seenPrs';
+const SHOW_OWN_KEY = 'elastic-pr-reviewer.showOwnPrs';
 
 function loadSeen(): Set<number> {
   try {

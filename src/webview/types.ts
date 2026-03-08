@@ -51,13 +51,15 @@ export interface GhPullRequest {
 }
 
 export interface GhDiscussionComment {
-  id: number;
+  id: string | number;
   author: string;
   avatarUrl?: string;
   body: string;
   createdAt: string;
-  kind: 'comment' | 'review';
+  kind: 'comment' | 'review' | 'commit';
   reviewState?: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED';
+  /** Short (7-char) commit SHA — only set when kind === 'commit'. */
+  commitSha?: string;
 }
 
 export interface OrderedFile {
@@ -127,6 +129,9 @@ export interface AppState {
 
   // Synthtrace
   synthtraceScenarios: string[];
+
+  /** False until the startup PR-restore check has completed. Used to suppress the tab label flicker. */
+  prRestoreComplete: boolean;
 }
 
 // ─── Message protocol ─────────────────────────────────────────────────────────
@@ -156,4 +161,5 @@ export type InboundMessage =
   | { type: 'openKibana' }
   | { type: 'runSynthtrace'; scenario: string; live: boolean }
   | { type: 'refreshScenarios' }
-  | { type: 'setTeamFilter'; team: string };
+  | { type: 'setTeamFilter'; team: string }
+  | { type: 'openCommit'; sha: string };

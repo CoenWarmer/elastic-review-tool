@@ -9,6 +9,7 @@ interface ActionSectionProps {
   esStatus: string;
   kibanaStatus: string;
   checkedOutPrNumber: number | null;
+  isKibanaRepo: boolean;
   synthtraceScenarios: string[];
   postMessage: (message: InboundMessage) => void;
 }
@@ -20,6 +21,7 @@ export function ActionSection({
   checkoutStage,
   esStatus,
   kibanaStatus,
+  isKibanaRepo,
   synthtraceScenarios,
   postMessage,
 }: ActionSectionProps) {
@@ -56,7 +58,8 @@ export function ActionSection({
         </button>
         <button
           className={`dev-env-toggle-btn${devEnvOpen ? ' active' : ''}`}
-          title={devEnvOpen ? 'Hide dev environment' : 'Show dev environment'}
+          title={isKibanaRepo ? (devEnvOpen ? 'Hide dev environment' : 'Show dev environment') : 'Only available in elastic/kibana'}
+          disabled={!isKibanaRepo}
           onClick={() => setDevEnvOpen((v) => !v)}
         >
           ⚡

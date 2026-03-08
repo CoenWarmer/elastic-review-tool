@@ -64,7 +64,7 @@ export async function loadPRData(
   ctx.changedFilesProvider.setFiles(prNumber, baseCommit, ordered);
   ctx.statusBarItem.text = `$(git-pull-request) PR #${prNumber}`;
   ctx.statusBarItem.tooltip = `Currently reviewing: #${prNumber} — ${detail.title}`;
-  ctx.statusBarItem.command = 'kibana-pr-reviewer.clearCheckedOutPR';
+  ctx.statusBarItem.command = 'elastic-pr-reviewer.clearCheckedOutPR';
   log('[loadPRData] Done');
 }
 
@@ -79,7 +79,7 @@ export async function checkoutPR(
   ctx: CheckoutContext
 ): Promise<void> {
   const prNumber = typeof prOrNumber === 'number' ? prOrNumber : prOrNumber.number;
-  const config = vscode.workspace.getConfiguration('kibana-pr-reviewer');
+  const config = vscode.workspace.getConfiguration('elastic-pr-reviewer');
   const repo = config.get<string>('repo', 'elastic/kibana');
   const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
@@ -154,7 +154,7 @@ export async function checkoutPR(
       // without waiting for the (slow) bootstrap to complete.
       reportStage(null); // clear the button status
       await loadPRData(prNumber, ctx);
-      void vscode.commands.executeCommand('kibana-pr-reviewer.prPanel.focus');
+      void vscode.commands.executeCommand('elastic-pr-reviewer.prPanel.focus');
 
       // Bootstrap runs after the UI is already updated.
       reportStage('Bootstrapping…');
@@ -168,7 +168,7 @@ export async function checkoutPR(
       ctx.changedFilesProvider.setError(`Checkout failed: ${msg}`);
       ctx.statusBarItem.text = `$(error) PR #${prNumber} checkout failed`;
       void vscode.window.showErrorMessage(
-        `Kibana PR Reviewer: Could not checkout PR #${prNumber}. ${msg}`
+        `Elastic PR Reviewer: Could not checkout PR #${prNumber}. ${msg}`
       );
     }
   })();

@@ -393,8 +393,8 @@ body {
 .pr-header-collapsible {
   position: relative;
 }
-/* Fade out the bottom edge only when a max-height is applied (i.e. not expanded) */
-.pr-header-collapsible[style*="max-height"] {
+/* Fade out the bottom edge only when content actually overflows the clamped height */
+.pr-header-clipped {
   -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 36px), transparent 100%);
   mask-image: linear-gradient(to bottom, black calc(100% - 36px), transparent 100%);
 }
@@ -636,7 +636,49 @@ hr { border: none; border-top: 1px solid var(--vscode-widget-border, #444); marg
 .disc-filter-login { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .discussion-thread { display: flex; flex-direction: column; gap: 1px; margin-bottom: 8px; }
-.disc-comment { padding: 8px 10px; border-left: 2px solid var(--vscode-widget-border, #333); margin: 0 0 6px 0; }
+/* Commit push row */
+.disc-commit {
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  padding: 4px 0; margin: 0 0 4px 0;
+  font-size: 11px; color: var(--vscode-descriptionForeground);
+  border-left: 2px solid transparent;
+}
+.disc-commit-icon { flex-shrink: 0; font-size: 10px; opacity: 0.6; }
+.disc-avatar-sm { width: 16px !important; height: 16px !important; font-size: 7px !important; }
+.disc-commit-author { font-weight: 600; color: var(--vscode-foreground); flex-shrink: 0; }
+.disc-commit-label { flex-shrink: 0; }
+.disc-commit-sha {
+  font-family: var(--vscode-editor-font-family, monospace); font-size: 10px;
+  color: var(--vscode-textLink-foreground); flex-shrink: 0;
+  background: none; border: none; padding: 0; cursor: pointer;
+  text-decoration: none;
+}
+.disc-commit-sha:hover { text-decoration: underline; }
+.disc-commit-msg-wrap {
+  position: relative; flex: 1; min-width: 0;
+}
+.disc-commit-msg {
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--vscode-editor-font-family, monospace); font-size: 11px;
+  color: var(--vscode-foreground); opacity: 0.75;
+}
+.disc-commit-tooltip {
+  display: none;
+  position: absolute; bottom: calc(100% + 6px); left: -100px; z-index: 200;
+  background: var(--vscode-editorHoverWidget-background, #252526);
+  border: 1px solid var(--vscode-editorHoverWidget-border, #454545);
+  color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
+  padding: 6px 10px; border-radius: 3px;
+  white-space: pre-wrap; word-break: break-word;
+  max-width: 340px; min-width: 260px;
+  font-family: var(--vscode-editor-font-family, monospace); font-size: 11px;
+  line-height: 1.5; box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
+.disc-commit-msg-wrap:hover .disc-commit-tooltip { display: block; }
+.disc-commit-age { flex-shrink: 0; margin-left: auto; }
+
+.disc-comment { padding: 8px 0; margin: 0 0 6px 0; }
 .disc-header { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-wrap: wrap; }
 .disc-avatar {
   width: 20px; height: 20px; border-radius: 50%;

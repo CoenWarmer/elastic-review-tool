@@ -1,6 +1,6 @@
 {
   "name": "kibana-pr-reviewer",
-  "displayName": "Kibana PR Reviewer",
+  "displayName": "Elastic PR Reviewer",
   "description": "Review Kibana pull requests with team filtering, smart file ordering, and inline diffs",
   "version": "0.1.7",
   "publisher": "cowibewa",
@@ -24,16 +24,16 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "kibana-pr-reviewer",
-          "title": "Kibana PR Reviewer",
+          "id": "elastic-pr-reviewer",
+          "title": "Elastic PR Reviewer",
           "icon": "resources/icons/pr-review.svg"
         }
       ]
     },
     "views": {
-      "kibana-pr-reviewer": [
+      "elastic-pr-reviewer": [
         {
-          "id": "kibana-pr-reviewer.prPanel",
+          "id": "elastic-pr-reviewer.prPanel",
           "name": "PR Reviewer",
           "type": "webview"
         }
@@ -41,130 +41,130 @@
     },
     "commands": [
       {
-        "command": "kibana-pr-reviewer.refresh",
+        "command": "elastic-pr-reviewer.refresh",
         "title": "Refresh PRs",
         "icon": "$(refresh)",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.checkoutPR",
+        "command": "elastic-pr-reviewer.checkoutPR",
         "title": "Checkout PR",
         "icon": "$(arrow-down)",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.openDiff",
+        "command": "elastic-pr-reviewer.openDiff",
         "title": "Open File Diff",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.setApiKey",
+        "command": "elastic-pr-reviewer.setApiKey",
         "title": "Set LLM API Key",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.clearCheckedOutPR",
+        "command": "elastic-pr-reviewer.clearCheckedOutPR",
         "title": "Clear Checked Out PR",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.showDiagnostics",
+        "command": "elastic-pr-reviewer.showDiagnostics",
         "title": "Show Diagnostics (teams + PR data)",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.enableNeedsReviewFilter",
+        "command": "elastic-pr-reviewer.enableNeedsReviewFilter",
         "title": "Show only PRs needing review",
         "icon": "$(filter)",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.disableNeedsReviewFilter",
+        "command": "elastic-pr-reviewer.disableNeedsReviewFilter",
         "title": "Show all PRs (clear review filter)",
         "icon": "$(filter-filled)",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.enableOwnedByMeFilter",
+        "command": "elastic-pr-reviewer.enableOwnedByMeFilter",
         "title": "Show only files owned by my teams",
         "icon": "$(person)",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.disableOwnedByMeFilter",
+        "command": "elastic-pr-reviewer.disableOwnedByMeFilter",
         "title": "Show all changed files",
         "icon": "$(person-filled)",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.addLineComment",
+        "command": "elastic-pr-reviewer.addLineComment",
         "title": "Add PR Comment on This Line",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.refreshComments",
+        "command": "elastic-pr-reviewer.refreshComments",
         "title": "Refresh Inline Comments",
         "icon": "$(comment-discussion)",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.createNote",
+        "command": "elastic-pr-reviewer.createNote",
         "title": "Submit",
         "icon": "$(check)",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.replyNote",
+        "command": "elastic-pr-reviewer.replyNote",
         "title": "Reply",
         "icon": "$(check)",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       },
       {
-        "command": "kibana-pr-reviewer.deleteThread",
+        "command": "elastic-pr-reviewer.deleteThread",
         "title": "Delete",
         "icon": "$(trash)",
-        "category": "Kibana PR Reviewer"
+        "category": "Elastic PR Reviewer"
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "kibana-pr-reviewer.refresh",
-          "when": "view == kibana-pr-reviewer.prPanel",
+          "command": "elastic-pr-reviewer.refresh",
+          "when": "view == elastic-pr-reviewer.prPanel",
           "group": "navigation@3"
         }
       ],
       "editor/context": [
         {
-          "command": "kibana-pr-reviewer.addLineComment",
+          "command": "elastic-pr-reviewer.addLineComment",
           "when": "isInDiffEditor",
-          "group": "kibana-pr-reviewer@1"
+          "group": "elastic-pr-reviewer@1"
         }
       ],
       "comments/commentThread/context": [
         {
-          "command": "kibana-pr-reviewer.createNote",
+          "command": "elastic-pr-reviewer.createNote",
           "group": "inline@1",
-          "when": "commentController == kibana-pr-reviewer"
+          "when": "commentController == elastic-pr-reviewer"
         },
         {
-          "command": "kibana-pr-reviewer.deleteThread",
+          "command": "elastic-pr-reviewer.deleteThread",
           "group": "inline@2",
-          "when": "commentController == kibana-pr-reviewer"
+          "when": "commentController == elastic-pr-reviewer"
         }
       ],
       "view/item/context": []
     },
     "keybindings": [],
     "configuration": {
-      "title": "Kibana PR Reviewer",
+      "title": "Elastic PR Reviewer",
       "properties": {
-        "kibana-pr-reviewer.repo": {
+        "elastic-pr-reviewer.repo": {
           "type": "string",
           "default": "elastic/kibana",
           "description": "GitHub repository to review PRs from (owner/repo)"
         },
-        "kibana-pr-reviewer.userTeams": {
+        "elastic-pr-reviewer.userTeams": {
           "type": "array",
           "items": {
             "type": "string"
@@ -172,7 +172,7 @@
           "default": [],
           "description": "Override GitHub team detection. Use @elastic/team-name format (e.g. [\"@elastic/kibana-core\"]). Leave empty for auto-detection."
         },
-        "kibana-pr-reviewer.llmProvider": {
+        "elastic-pr-reviewer.llmProvider": {
           "type": "string",
           "enum": [
             "none",
@@ -182,17 +182,17 @@
           "default": "none",
           "description": "LLM provider for intelligent file ordering. Use 'none' to rely on heuristics only."
         },
-        "kibana-pr-reviewer.llmModel": {
+        "elastic-pr-reviewer.llmModel": {
           "type": "string",
           "default": "",
           "description": "LLM model override. Defaults: openai=gpt-4o-mini, anthropic=claude-haiku-4-5"
         },
-        "kibana-pr-reviewer.llmApiKey": {
+        "elastic-pr-reviewer.llmApiKey": {
           "type": "string",
           "default": "",
           "description": "API key for the configured LLM provider (OpenAI or Anthropic). Used as a fallback when GitHub Copilot / vscode.lm is not available."
         },
-        "kibana-pr-reviewer.prLimit": {
+        "elastic-pr-reviewer.prLimit": {
           "type": "number",
           "default": 50,
           "description": "Maximum number of PRs to fetch"

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { GitHubService } from './github_service';
 
-const CACHE_KEY_TEAMS = 'kibana-pr-reviewer.cachedUserTeams';
+const CACHE_KEY_TEAMS = 'elastic-pr-reviewer.cachedUserTeams';
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 interface TeamCache {
@@ -93,7 +93,7 @@ export class CodeOwnersService {
    * Checks settings override first, then GitHub API (with cache).
    */
   async getUserTeams(): Promise<string[]> {
-    const config = vscode.workspace.getConfiguration('kibana-pr-reviewer');
+    const config = vscode.workspace.getConfiguration('elastic-pr-reviewer');
     const override: string[] = config.get('userTeams') ?? [];
 
     if (override.length > 0) {
@@ -180,7 +180,7 @@ export class CodeOwnersService {
 
     try {
       const repo = vscode.workspace
-        .getConfiguration('kibana-pr-reviewer')
+        .getConfiguration('elastic-pr-reviewer')
         .get<string>('repo', 'elastic/kibana');
       const orgName = repo.split('/')[0];
 
@@ -188,8 +188,8 @@ export class CodeOwnersService {
 
       if (teams.length === 0) {
         void vscode.window.showWarningMessage(
-          `Kibana PR Reviewer: No teams found for your GitHub account in the "${orgName}" org. ` +
-            `Set kibana-pr-reviewer.userTeams in settings to override (e.g. ["@elastic/obs-onboarding-team"]).`
+          `Elastic PR Reviewer: No teams found for your GitHub account in the "${orgName}" org. ` +
+            `Set elastic-pr-reviewer.userTeams in settings to override (e.g. ["@elastic/obs-onboarding-team"]).`
         );
       }
 
@@ -197,9 +197,9 @@ export class CodeOwnersService {
       return teams;
     } catch (err) {
       void vscode.window.showWarningMessage(
-        `Kibana PR Reviewer: Could not fetch team memberships — ` +
+        `Elastic PR Reviewer: Could not fetch team memberships — ` +
           `${err instanceof Error ? err.message : String(err)}. ` +
-          `Set kibana-pr-reviewer.userTeams in settings to override.`
+          `Set elastic-pr-reviewer.userTeams in settings to override.`
       );
       return [];
     }

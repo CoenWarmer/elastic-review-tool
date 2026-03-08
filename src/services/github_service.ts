@@ -82,16 +82,18 @@ export interface GhPRLineComment {
   created_at: string;
 }
 
-/** A general PR comment or a review with a body, merged into a single timeline type. */
+/** A general PR comment, review, or commit push event merged into a single timeline type. */
 export interface GhDiscussionComment {
-  id: number;
+  id: string | number;
   author: string;
   avatarUrl?: string;
   body: string;
   createdAt: string;
-  /** 'comment' = issue comment; 'review' = approve/request-changes/comment review */
-  kind: 'comment' | 'review';
+  /** 'comment' = issue comment; 'review' = approve/request-changes/comment review; 'commit' = pushed commit */
+  kind: 'comment' | 'review' | 'commit';
   reviewState?: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED';
+  /** Short (7-char) commit SHA — only set when kind === 'commit'. */
+  commitSha?: string;
 }
 
 export interface GhPullRequestFile {
@@ -197,7 +199,7 @@ export class GitHubService {
 
     if (codeOwnerTeams.length === 0) {
       log(
-        'All detected teams are generic — no code-owner teams to query. Configure kibana-pr-reviewer.userTeams manually.'
+        'All detected teams are generic — no code-owner teams to query. Configure elastic-pr-reviewer.userTeams manually.'
       );
       return [];
     }
@@ -655,15 +657,16 @@ export class GitHubService {
   }
 
   /**
-   * Fetches the general discussion timeline for a PR: issue-level comments plus
-   * review summaries that have a non-empty body. Sorted oldest-first.
+   * Fetches the general discussion timeline for a PR: issue-level comments,
+   * review summaries with a body, and commit push events. Sorted oldest-first.
    */
   async getDiscussionComments(prNumber: number): Promise<GhDiscussionComment[]> {
     const [owner, repo] = this.repo.split('/');
 
-    const [issueRaw, reviewsRaw] = await Promise.all([
+    const [issueRaw, reviewsRaw, commitsRaw] = await Promise.all([
       runGh(['api', `repos/${owner}/${repo}/issues/${prNumber}/comments?per_page=100`]),
       runGh(['api', `repos/${owner}/${repo}/pulls/${prNumber}/reviews?per_page=100`]),
+      runGh(['api', `repos/${owner}/${repo}/pulls/${prNumber}/commits?per_page=100`]),
     ]);
 
     type IssueComment = {
@@ -678,6 +681,15 @@ export class GitHubService {
       body: string;
       submitted_at: string;
       state: string;
+    };
+    type Commit = {
+      sha: string;
+      commit: {
+        message: string;
+        author: { name: string; date: string };
+      };
+      /** Top-level author is the GitHub user; may be null for unlinked commits. */
+      author: { login: string; avatar_url?: string } | null;
     };
 
     const issueComments: GhDiscussionComment[] = (JSON.parse(issueRaw) as IssueComment[])
@@ -703,7 +715,21 @@ export class GitHubService {
         reviewState: r.state as GhDiscussionComment['reviewState'],
       }));
 
-    return [...issueComments, ...reviewComments].sort(
+    const commitItems: GhDiscussionComment[] = (JSON.parse(commitsRaw) as Commit[]).map((c) => {
+      const shortSha = c.sha.slice(0, 7);
+      return {
+        id: `commit-${shortSha}`,
+        author: c.author?.login ?? c.commit.author.name,
+        avatarUrl: c.author?.avatar_url,
+        // Store the full message so the UI can show it on hover.
+        body: c.commit.message.trim(),
+        createdAt: c.commit.author.date,
+        kind: 'commit' as const,
+        commitSha: shortSha,
+      };
+    });
+
+    return [...issueComments, ...reviewComments, ...commitItems].sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
   }
