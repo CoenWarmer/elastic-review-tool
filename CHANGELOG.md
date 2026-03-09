@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.9] - 2026-03-09
+
+### Added
+- **Commit stepper in Changed Files**: a stepper bar above the file list lets you step through each commit in a PR chronologically; defaults to "All" mode showing the full PR diff; selecting a commit dims (0.45 opacity, non-clickable) files not touched by that commit, and highlights touched files with their commit-specific `+additions -deletions` counts
+- **Per-commit diff from file list**: clicking a touched file while a commit is selected opens a side-by-side diff scoped to that commit (reuses the existing `pr-base://commit-base/` / `pr-base://commit-head/` URI scheme); handles renamed files
+- **Commit-only files in stepper**: files that were added and later deleted within the same PR (net-zero, absent from GitHub's PR diff) are injected as extra rows when the commit that deleted them is selected
+- **Shared `CommitLabel` component**: the clickable SHA, truncated first-line message, and full-message CSS tooltip are now a single reusable component used identically in both the Discussion timeline and the commit stepper
+
+### Changed
+- Changed Files header count shows `(N/M)` when a commit is selected, where N is the number of PR files touched by that commit and M is the total PR file count
+- Navigating between commits (← →) no longer causes the file list to disappear; the previous commit's dimming state is kept visible while the new commit's data loads, with a small inline spinner in the stepper bar replacing the SHA/message during loading
+- The `⊕ commit-only` indicator explains files visible in a commit view that are absent from "All" mode
+
+### Fixed
+- `Changed Files (5/4)` impossible count: the numerator now counts how many of the PR's own files are touched by the selected commit, not the raw `git diff-tree` file count (which can exceed the net PR diff when a commit touches files later reverted)
+
+---
+
 ## [0.1.8] - 2026-03-08
 
 ### Added
