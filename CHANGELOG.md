@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.13] - 2026-03-09
+
+### Performance
+- **Eliminated redundant `getPRBaseCommit` API call**: `baseRefOid` is now fetched as part of `getPullRequestDetail`, removing a separate serial API call on every PR load and checkout
+- **60-second TTL cache for PR detail**: `getPullRequestDetail` now caches results for 60 seconds, so back-to-back calls (e.g. `fetchAndUpdateDetail` + `refreshFilesAndComments` firing together when selecting a checked-out PR) hit the cache instead of making a duplicate network round-trip; the cache is invalidated after posting a comment or submitting a review
+- **`getLineComments` parallelised with `getPullRequestDetail`**: inline review comments are now fetched in parallel with the PR detail in `refreshFilesAndComments`, reducing the serial chain from 3 sequential calls to 1 parallel batch
+- **`viewReady` wait parallelised with `getPullRequestDetail`** in `loadPRData`: the webview initialisation wait and the GitHub API fetch now happen concurrently
+- **Concurrency cap on queue search queries**: `listOpenPRsForTeams` previously fired all `team-review-requested:` and `reviewed-by:` queries at once; they are now throttled to 6 concurrent requests via a new `runWithConcurrency` helper, reducing the risk of hitting GitHub API rate limits
+- **Parallel remote pruning**: `git remote prune upstream` and `git remote prune origin` now run in parallel during checkout conflict recovery
+- **Throttled auto-refresh on tab switch**: switching to the Review Queue tab no longer triggers a full GitHub fetch if the last refresh was under 15 seconds ago; explicit user-initiated refreshes (button, config change, startup) always bypass the throttle
+
+---
+
 ## [0.1.12] - 2026-03-09
 
 ### Fixed
