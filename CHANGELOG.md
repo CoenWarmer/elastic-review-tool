@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14] - 2026-03-09
+
+### Added
+- **"In review by you" bucket in the Review Queue**: a fourth bucket now appears between "Unreviewed" and "In review" for PRs where you personally have submitted a `COMMENTED` or `CHANGES_REQUESTED` review but have not yet approved; it is always labelled "In review by you" (no team suffix) and works with or without a team filter active
+
+---
+
 ## [0.1.13] - 2026-03-09
 
 ### Performance
