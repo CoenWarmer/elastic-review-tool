@@ -24,6 +24,8 @@ export interface TeamReviewInfo {
   status: TeamReviewStatus;
   /** Present when status is APPROVED or CHANGES_REQUESTED */
   reviewer?: { login: string; submittedAt: string };
+  /** All team members who have reviewed (IN_PROGRESS state); supersedes the single reviewer field. */
+  reviewers?: Array<{ login: string; submittedAt: string }>;
 }
 
 export interface GhPullRequest {
@@ -169,16 +171,23 @@ export class GitHubService {
   /**
    * Fetches open PRs where any of the given teams is (or was) a requested reviewer.
    *
-   * Uses `team-review-requested:org/team` (not `review-requested:`) because:
-   * - `review-requested:` disappears once a team member submits their review
-   * - `team-review-requested:` persists for the lifetime of the PR
+   * Uses `team-review-requested:org/team` as the primary query, which only matches PRs
+   * with a PENDING team review request. Once ANY team member submits a review (even just
+   * a comment), GitHub drops the PR from those results — for everyone, not just the
+   * reviewer.
    *
-   * Runs one query per team so that a single unresolvable team (e.g. a huge
-   * org-wide team like "employees") cannot poison the results for all others.
+   * To compensate, a `reviewed-by:<member>` query is run for every member of each team.
+   * This recaptures PRs where a colleague has already reviewed but the rest of the team
+   * still needs to see them.
+   *
+   * Runs one query per team / per member — failures are isolated and logged.
    *
    * Team slugs must be in "@org/team-name" format, e.g. "@elastic/obs-onboarding-team".
    */
-  async listOpenPRsForTeams(teamSlugs: string[]): Promise<GhPullRequest[]> {
+  async listOpenPRsForTeams(
+    teamSlugs: string[],
+    currentUserLogin?: string
+  ): Promise<GhPullRequest[]> {
     if (teamSlugs.length === 0) {
       log('No teams provided — cannot fetch team PRs');
       return [];
@@ -207,40 +216,65 @@ export class GitHubService {
     const JSON_FIELDS =
       'number,title,body,isDraft,additions,deletions,createdAt,headRefName,baseRefName,reviewRequests,reviewDecision,author,url,latestReviews,assignees,comments';
 
-    // One query per team — failures are isolated and logged
-    const perTeamResults = await Promise.all(
-      codeOwnerTeams.map(async (teamSlug) => {
-        // team-review-requested: takes "org/team" without the leading @
-        const teamRef = teamSlug.replace(/^@/, '');
-        const searchQuery = `team-review-requested:${teamRef}`;
-        log(`Querying team "${teamSlug}" → search: "${searchQuery}"`);
+    const listPRs = async (searchQuery: string, label: string): Promise<GhPullRequest[]> => {
+      try {
+        const raw = await runGh([
+          'pr',
+          'list',
+          '--repo',
+          this.repo,
+          '--state',
+          'open',
+          '--search',
+          searchQuery,
+          '--json',
+          JSON_FIELDS,
+          '--limit',
+          '200',
+        ]);
+        const prs = JSON.parse(raw) as GhPullRequest[];
+        log(`  → ${prs.length} PRs for ${label}`);
+        return prs;
+      } catch (err) {
+        log(`  ✗ Query failed for ${label}: ${err instanceof Error ? err.message : String(err)}`);
+        return [] as GhPullRequest[];
+      }
+    };
 
-        try {
-          const raw = await runGh([
-            'pr',
-            'list',
-            '--repo',
-            this.repo,
-            '--state',
-            'open',
-            '--search',
-            searchQuery,
-            '--json',
-            JSON_FIELDS,
-            '--limit',
-            '200',
-          ]);
-          const prs = JSON.parse(raw) as GhPullRequest[];
-          log(`  → ${prs.length} PRs for ${teamSlug}`);
-          return prs;
-        } catch (err) {
-          log(
-            `  ✗ Query failed for ${teamSlug}: ${err instanceof Error ? err.message : String(err)}`
-          );
-          return [] as GhPullRequest[];
-        }
+    // Primary queries: one per team (pending review requests only).
+    const queries: Array<Promise<GhPullRequest[]>> = codeOwnerTeams.map((teamSlug) => {
+      const teamRef = teamSlug.replace(/^@/, '');
+      log(`Querying team "${teamSlug}" → search: "team-review-requested:${teamRef}"`);
+      return listPRs(`team-review-requested:${teamRef}`, teamSlug);
+    });
+
+    // Secondary queries: `reviewed-by:<member>` for every member of each team.
+    // Once any team member reviews a PR, GitHub drops it from team-review-requested
+    // results — even for colleagues who haven't reviewed yet. We recapture those PRs
+    // by fetching them per member.
+    const memberLoginSets = await Promise.all(
+      codeOwnerTeams.map(async (teamSlug) => {
+        // "@elastic/obs-onboarding-team" → org="elastic", slug="obs-onboarding-team"
+        const withoutAt = teamSlug.replace(/^@/, '');
+        const slashIdx = withoutAt.indexOf('/');
+        if (slashIdx === -1) return [];
+        const org = withoutAt.slice(0, slashIdx);
+        const slug = withoutAt.slice(slashIdx + 1);
+        return this.getTeamMemberLogins(org, slug);
       })
     );
+
+    // Collect unique member logins across all teams (deduplicate)
+    const allMemberLogins = new Set<string>(memberLoginSets.flat());
+    // Always include the current user even if team membership lookup fails
+    if (currentUserLogin) allMemberLogins.add(currentUserLogin);
+
+    for (const login of allMemberLogins) {
+      log(`Adding reviewed-by:${login} query to catch already-reviewed PRs`);
+      queries.push(listPRs(`reviewed-by:${login}`, `reviewed-by:${login}`));
+    }
+
+    const perTeamResults = await Promise.all(queries);
 
     // Merge and deduplicate by PR number (a PR can match multiple teams)
     const seen = new Set<number>();

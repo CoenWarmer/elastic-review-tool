@@ -113,7 +113,26 @@ export function App() {
 
   const isKibanaRepo = !state.wrongRepo;
 
-  const visiblePrCount = state.allPrs.filter((pr) => !pr.isDraft).length;
+  // Mirror the same filters QueuePane applies so the tab count matches the list.
+  const teamFilterBareSlug = state.teamFilter ? state.teamFilter.replace(/^@[^/]+\//, '') : null;
+  const teamFilterMemberSet = new Set(state.teamFilterMembers);
+  const showOwnPrs = localStorage.getItem('elastic-pr-reviewer.showOwnPrs') === 'true';
+  const visiblePrCount = state.allPrs.filter((pr) => {
+    if (pr.isDraft) return false;
+    if (!showOwnPrs && state.currentUserLogin && pr.author.login === state.currentUserLogin)
+      return false;
+    if (!teamFilterBareSlug) return true;
+    if (
+      pr.reviewRequests.some((r) => r.slug === teamFilterBareSlug || r.name === teamFilterBareSlug)
+    )
+      return true;
+    if (teamFilterMemberSet.size > 0) {
+      if ((pr.latestReviews ?? []).some((r) => teamFilterMemberSet.has(r.author.login)))
+        return true;
+      if ((pr.assignees ?? []).some((a) => teamFilterMemberSet.has(a.login))) return true;
+    }
+    return false;
+  }).length;
   const queueLabel = (
     <>
       Review Queue{' '}

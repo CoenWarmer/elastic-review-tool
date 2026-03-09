@@ -1,10 +1,14 @@
 import * as vscode from 'vscode';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import type { GitHubService, GhPullRequest, GhDiscussionComment } from '../services/github_service';
 import type { CodeOwnersService } from '../services/codeowners_service';
 import type { OrderedFile } from '../services/file_ordering_service';
 import { sortAndGroupFiles } from '../services/file_ordering_service';
 import type { ReviewOrderSuggestion } from '../services/review_order_service';
 import { log } from '../logger';
+
+const exec = promisify(execFile);
 
 // ─── Message types ────────────────────────────────────────────────────────────
 
@@ -50,7 +54,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
   private userTeams: string[] = [];
   private teamFilter = '';
   private currentUserLogin = '';
-  private currentBranch: string | null = null;
+  currentBranch: string | null = null;
 
   // Description state
   currentPr?: GhPullRequest;
@@ -83,6 +87,8 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
   // ─── My Branch state ─────────────────────────────────────────────────────────
   private myBranchBaseRef: string | null = null;
   private myBranchCommits: GhDiscussionComment[] = [];
+  /** Cached result of `git rev-parse --abbrev-ref origin/HEAD`. Rarely changes. */
+  private cachedBaseRef: string | null = null;
 
   /** PR number currently checked out on the local git branch, or null if none. */
   private _checkedOutPrNumber: number | null = null;
@@ -393,43 +399,61 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
     this.sendState({ cfIsLoading: true, cfErrorMessage: '' });
 
     try {
-      const { execFile } = await import('child_process');
-      const { promisify } = await import('util');
-      const exec = promisify(execFile);
-
-      // Detect upstream base ref (e.g. "origin/main"). Fall back to "origin/main".
-      let baseRef = 'origin/main';
-      try {
-        const { stdout } = await exec('git', ['rev-parse', '--abbrev-ref', 'origin/HEAD'], {
-          cwd,
-          encoding: 'utf8',
-        });
-        const candidate = stdout.trim();
-        if (candidate) baseRef = candidate;
-      } catch {
-        // remote HEAD not set — stick with "origin/main"
+      // Resolve base ref — use cached value if available (rarely changes).
+      if (!this.cachedBaseRef) {
+        let resolved = 'origin/main';
+        try {
+          const { stdout } = await exec('git', ['rev-parse', '--abbrev-ref', 'origin/HEAD'], {
+            cwd,
+            encoding: 'utf8',
+          });
+          const candidate = stdout.trim();
+          if (candidate) resolved = candidate;
+        } catch {
+          // remote HEAD not set — stick with "origin/main"
+        }
+        this.cachedBaseRef = resolved;
       }
+      const baseRef = this.cachedBaseRef;
 
-      // Get the merge-base commit SHA for diff viewing
-      let mergeBaseSha = baseRef;
-      try {
-        const { stdout } = await exec('git', ['merge-base', baseRef, 'HEAD'], {
-          cwd,
-          encoding: 'utf8',
-        });
-        mergeBaseSha = stdout.trim();
-      } catch {
-        // fallback: use the ref name directly
-      }
-
-      // Fetch files and commits in parallel
-      const [{ stdout: numstatOut }, { stdout: logOut }] = await Promise.all([
-        exec('git', ['diff', '--numstat', mergeBaseSha], { cwd, encoding: 'utf8' }),
+      // Get merge-base SHA and commits in parallel — both are fast.
+      const [mergeBaseResult, { stdout: logOut }] = await Promise.all([
+        exec('git', ['merge-base', baseRef, 'HEAD'], { cwd, encoding: 'utf8' }).catch(() => ({
+          stdout: baseRef,
+        })),
         exec('git', ['log', '--reverse', `${baseRef}..HEAD`, '--format=%h\t%s\t%aI\t%aN'], {
           cwd,
           encoding: 'utf8',
         }),
       ]);
+      const mergeBaseSha = (mergeBaseResult as { stdout: string }).stdout.trim() || baseRef;
+
+      // Send commits immediately so the stepper appears without waiting for the diff.
+      const commits: GhDiscussionComment[] = logOut
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => {
+          const [sha, message, createdAt, author] = line.split('\t');
+          return {
+            id: `commit-${sha}`,
+            author: author ?? '',
+            body: message ?? '',
+            createdAt: createdAt ?? new Date().toISOString(),
+            kind: 'commit' as const,
+            commitSha: sha,
+          };
+        });
+      this.myBranchBaseRef = baseRef;
+      this.myBranchCommits = commits;
+      this.cfBaseCommit = mergeBaseSha;
+      this.sendState({ myBranchBaseRef: baseRef, myBranchCommits: commits });
+
+      // Now fetch the (potentially slower) working-tree diff.
+      const { stdout: numstatOut } = await exec('git', ['diff', '--numstat', mergeBaseSha], {
+        cwd,
+        encoding: 'utf8',
+      });
 
       // Parse numstat → OrderedFile[]
       const rawFiles = numstatOut
@@ -450,30 +474,9 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
 
       const orderedFiles = sortAndGroupFiles(rawFiles);
 
-      // Parse git log → GhDiscussionComment[] (kind: 'commit')
-      const commits: GhDiscussionComment[] = logOut
-        .trim()
-        .split('\n')
-        .filter(Boolean)
-        .map((line) => {
-          const [sha, message, createdAt, author] = line.split('\t');
-          return {
-            id: `commit-${sha}`,
-            author: author ?? '',
-            body: message ?? '',
-            createdAt: createdAt ?? new Date().toISOString(),
-            kind: 'commit' as const,
-            commitSha: sha,
-          };
-        });
-
-      this.myBranchBaseRef = baseRef;
-      this.myBranchCommits = commits;
-
       // Populate cfFiles so FilesSection + commit stepper work normally.
       // Use 0 as a sentinel prNumber (no real PR).
       this.cfPrNumber = 0;
-      this.cfBaseCommit = mergeBaseSha;
       this.cfFiles = orderedFiles;
       this.cfReviewedPaths.clear();
       this.cfActiveFile = null;
@@ -492,8 +495,6 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
         cfCommitFilter: null,
         cfCommitFilterFiles: null,
         cfCommitFilterLoading: false,
-        myBranchBaseRef: baseRef,
-        myBranchCommits: commits,
       });
 
       void this.precomputeOwnedPaths(orderedFiles.map((f) => f.path));
@@ -510,10 +511,6 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
     const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!cwd) return;
     try {
-      const { execFile } = await import('child_process');
-      const { promisify } = await import('util');
-      const exec = promisify(execFile);
-
       // Run both in parallel: name-status for status+rename paths, numstat for line counts.
       const [{ stdout: nameStatusOut }, { stdout: numstatOut }] = await Promise.all([
         exec('git', ['diff-tree', '--no-commit-id', '-r', '--name-status', '-M', sha], {
@@ -722,7 +719,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
         return;
       }
 
-      this.allPrs = await this.githubService.listOpenPRsForTeams(userTeams);
+      this.allPrs = await this.githubService.listOpenPRsForTeams(userTeams, this.currentUserLogin);
       log(`PRs returned for teams: ${this.allPrs.length}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

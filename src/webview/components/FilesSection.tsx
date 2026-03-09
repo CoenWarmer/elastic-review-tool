@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { ReactElement } from 'react';
 import { postMessage } from '../vscode';
 import { cfBuildTree, cfCompactFolders, cfStatusIcon, normalizeFileStatus } from '../utils';
@@ -38,6 +38,7 @@ interface Props {
   /** When set, each file row shows a commit-selection checkbox. */
   selectedForCommit?: Set<string>;
   onToggleFileForCommit?: (path: string) => void;
+  onSelectAllFilesForCommit?: (paths: string[], select: boolean) => void;
 }
 
 export function FilesSection({
@@ -58,6 +59,7 @@ export function FilesSection({
   commitFilterLoading,
   selectedForCommit,
   onToggleFileForCommit,
+  onSelectAllFilesForCommit,
 }: Props) {
   const [search, setSearch] = useState('');
   const [showOwnedByMe, setShowOwnedByMe] = useState(false);
@@ -70,12 +72,9 @@ export function FilesSection({
 
   const hasSuggestion = suggestedOrder !== null;
 
-  // When not checked out but we have preview files, show them under an overlay.
-  if (!isCheckedOut && files.length === 0 && previewFiles && previewFiles.length > 0) {
-    return <PreviewFileList previewFiles={previewFiles} />;
-  }
-
   // Build a set of paths touched by the selected commit (null = no filter active).
+  // These must be computed before any early return so that the useCallback below
+  // is always called unconditionally (Rules of Hooks).
   const touchedPaths: Set<string> | null =
     commitFilter && commitFilterFiles ? new Set(commitFilterFiles.map((f) => f.path)) : null;
 
@@ -95,6 +94,23 @@ export function FilesSection({
 
   const allFiles = commitOnlyFiles.length > 0 ? [...files, ...commitOnlyFiles] : files;
   const total = allFiles.length || (previewFiles?.length ?? 0);
+
+  // "Select all" state — only relevant in My Branch mode when selectedForCommit is provided.
+  const allPaths = allFiles.map((f) => f.path);
+  const allSelected = allPaths.length > 0 && allPaths.every((p) => selectedForCommit?.has(p));
+  const someSelected = !allSelected && allPaths.some((p) => selectedForCommit?.has(p));
+  // useCallback must be called unconditionally — keep it above every early return.
+  const selectAllRef = useCallback(
+    (el: HTMLInputElement | null) => {
+      if (el) el.indeterminate = someSelected;
+    },
+    [someSelected]
+  );
+
+  // When not checked out but we have preview files, show them under an overlay.
+  if (!isCheckedOut && files.length === 0 && previewFiles && previewFiles.length > 0) {
+    return <PreviewFileList previewFiles={previewFiles} />;
+  }
   const visible =
     showOwnedByMe && ownedByMePaths
       ? allFiles.filter((f) => ownedByMePaths.includes(f.path))
@@ -119,45 +135,34 @@ export function FilesSection({
     const q = search.trim().toLowerCase();
     const filtered = q ? visible.filter((f) => f.path.toLowerCase().includes(q)) : visible;
 
-    let fileListNode: React.ReactNode;
+    // When a suggestion is active, sort files by suggestion order and build an
+    // orderMap so FileRow can show the number badge and reason inside the tree.
+    let orderMap: Map<string, { num: number; reason: string }> | undefined;
+    let treeInput = filtered;
     if (orderMode !== 'default' && hasSuggestion) {
       const ordered = orderMode === 'top-down' ? suggestedOrder!.topDown : suggestedOrder!.bottomUp;
+      orderMap = new Map(ordered.map((sf, i) => [sf.path, { num: i + 1, reason: sf.reason }]));
       const visibleMap = new Map(filtered.map((f) => [f.path, f]));
-      fileListNode = ordered
+      // Sort filtered files by suggestion order; unranked files go to the end.
+      treeInput = ordered
         .filter((sf) => visibleMap.has(sf.path))
-        .map((sf, i) => {
-          const dimmed = touchedPaths !== null && !touchedPaths.has(sf.path);
-          return (
-            <OrderedFileRow
-              key={sf.path}
-              file={visibleMap.get(sf.path)!}
-              reason={sf.reason}
-              num={i + 1}
-              isActive={sf.path === activeFile}
-              isReviewed={reviewedSet.has(sf.path)}
-              dimmed={dimmed}
-              commitFilter={commitFilter}
-              commitFile={commitFileMap.get(sf.path)}
-              selectedForCommit={selectedForCommit}
-              onToggleFileForCommit={onToggleFileForCommit}
-            />
-          );
-        });
-    } else {
-      const tree = cfCompactFolders(cfBuildTree(filtered));
-      fileListNode = (
-        <TreeChildren
-          children={tree.children}
-          activeFile={activeFile}
-          reviewedSet={reviewedSet}
-          touchedPaths={touchedPaths}
-          commitFilter={commitFilter}
-          commitFileMap={commitFileMap}
-          selectedForCommit={selectedForCommit}
-          onToggleFileForCommit={onToggleFileForCommit}
-        />
-      );
+        .map((sf) => visibleMap.get(sf.path)!);
     }
+
+    const tree = cfCompactFolders(cfBuildTree(treeInput));
+    const fileListNode = (
+      <TreeChildren
+        children={tree.children}
+        activeFile={activeFile}
+        reviewedSet={reviewedSet}
+        touchedPaths={touchedPaths}
+        commitFilter={commitFilter}
+        commitFileMap={commitFileMap}
+        orderMap={orderMap}
+        selectedForCommit={selectedForCommit}
+        onToggleFileForCommit={onToggleFileForCommit}
+      />
+    );
 
     body = (
       <>
@@ -172,20 +177,35 @@ export function FilesSection({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <button
-              className={`cf-filter-btn${showOwnedByMe ? ' active' : ''}`}
-              title={
-                ownedByMePaths === null
-                  ? 'Computing owned files…'
-                  : showOwnedByMe
-                    ? 'Show all files'
-                    : 'Show only files I own'
-              }
-              disabled={ownedByMePaths === null}
-              onClick={() => setShowOwnedByMe((v) => !v)}
-            >
-              👤 Owned by me
-            </button>
+            {selectedForCommit ? (
+              <label className="cf-select-all-label">
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  className="commit-check commit-check-all"
+                  title={allSelected ? 'Deselect all' : 'Select all'}
+                  checked={allSelected}
+                  onChange={() => onSelectAllFilesForCommit?.(allPaths, !allSelected)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                Select all
+              </label>
+            ) : (
+              <button
+                className={`cf-filter-btn${showOwnedByMe ? ' active' : ''}`}
+                title={
+                  ownedByMePaths === null
+                    ? 'Computing owned files…'
+                    : showOwnedByMe
+                      ? 'Show all files'
+                      : 'Show only files I own'
+                }
+                disabled={ownedByMePaths === null}
+                onClick={() => setShowOwnedByMe((v) => !v)}
+              >
+                👤 Owned by me
+              </button>
+            )}
           </div>
 
           <div className="cf-toolbar-row">
@@ -249,31 +269,97 @@ export function FilesSection({
   );
 }
 
-function OrderedFileRow({
+function TreeChildren({
+  children,
+  activeFile,
+  reviewedSet,
+  touchedPaths,
+  commitFilter,
+  commitFileMap,
+  orderMap,
+  selectedForCommit,
+  onToggleFileForCommit,
+}: {
+  children: CfTreeChild[];
+  activeFile: string | null;
+  reviewedSet: Set<string>;
+  touchedPaths: Set<string> | null;
+  commitFilter: string | null;
+  commitFileMap: Map<string, CommitFile>;
+  orderMap?: Map<string, { num: number; reason: string }>;
+  selectedForCommit?: Set<string>;
+  onToggleFileForCommit?: (path: string) => void;
+}): ReactElement {
+  return (
+    <>
+      {children.map((child, i) => {
+        if (child.type === 'file') {
+          const dimmed = touchedPaths !== null && !touchedPaths.has(child.file.path);
+          return (
+            <FileRow
+              key={child.file.path}
+              file={child.file}
+              isActive={child.file.path === activeFile}
+              isReviewed={reviewedSet.has(child.file.path)}
+              dimmed={dimmed}
+              commitFilter={commitFilter}
+              commitFile={commitFileMap.get(child.file.path)}
+              orderEntry={orderMap?.get(child.file.path)}
+              selectedForCommit={selectedForCommit}
+              onToggleFileForCommit={onToggleFileForCommit}
+            />
+          );
+        }
+        return (
+          <details key={child.name + i} className="folder" open>
+            <summary className="folder-row">
+              <span className="fold-arrow">▶</span>
+              <span className="fold-name">{child.name}</span>
+            </summary>
+            <div className="folder-contents">
+              <TreeChildren
+                children={child.children}
+                activeFile={activeFile}
+                reviewedSet={reviewedSet}
+                touchedPaths={touchedPaths}
+                commitFilter={commitFilter}
+                commitFileMap={commitFileMap}
+                orderMap={orderMap}
+                selectedForCommit={selectedForCommit}
+                onToggleFileForCommit={onToggleFileForCommit}
+              />
+            </div>
+          </details>
+        );
+      })}
+    </>
+  );
+}
+
+function FileRow({
   file,
-  reason,
-  num,
   isActive,
   isReviewed,
   dimmed = false,
   commitFilter = null,
   commitFile,
+  orderEntry,
   selectedForCommit,
   onToggleFileForCommit,
 }: {
   file: OrderedFile;
-  reason: string;
-  num: number;
   isActive: boolean;
   isReviewed: boolean;
   dimmed?: boolean;
   commitFilter?: string | null;
   commitFile?: CommitFile;
+  orderEntry?: { num: number; reason: string };
   selectedForCommit?: Set<string>;
   onToggleFileForCommit?: (path: string) => void;
 }) {
   const status = normalizeFileStatus(file);
   const { icon, colorClass } = cfStatusIcon(status);
+  const fileName = file.path.split('/').pop() ?? file.path;
   const handleClick = () => {
     if (commitFilter && commitFile) {
       postMessage({
@@ -318,11 +404,11 @@ function OrderedFileRow({
             onClick={(e) => e.stopPropagation()}
           />
         )}
-        <span className="ordered-num">{num}</span>
+        {orderEntry && <span className="ordered-num">{orderEntry.num}</span>}
         <span className={`status-icon ${colorClass}`} title={status}>
           {icon}
         </span>
-        <span className="cf-file-name">{file.path}</span>
+        <span className="cf-file-name">{fileName}</span>
         <span className="cf-stats">
           {(commitFile?.additions ?? file.additions) > 0 && (
             <span className="cf-adds">+{commitFile?.additions ?? file.additions}</span>
@@ -332,152 +418,8 @@ function OrderedFileRow({
           )}
         </span>
       </div>
-      {reason && <div className="order-reason">{reason}</div>}
+      {orderEntry?.reason && <div className="order-reason">{orderEntry.reason}</div>}
     </>
-  );
-}
-
-function TreeChildren({
-  children,
-  activeFile,
-  reviewedSet,
-  touchedPaths,
-  commitFilter,
-  commitFileMap,
-  selectedForCommit,
-  onToggleFileForCommit,
-}: {
-  children: CfTreeChild[];
-  activeFile: string | null;
-  reviewedSet: Set<string>;
-  touchedPaths: Set<string> | null;
-  commitFilter: string | null;
-  commitFileMap: Map<string, CommitFile>;
-  selectedForCommit?: Set<string>;
-  onToggleFileForCommit?: (path: string) => void;
-}): ReactElement {
-  return (
-    <>
-      {children.map((child, i) => {
-        if (child.type === 'file') {
-          const dimmed = touchedPaths !== null && !touchedPaths.has(child.file.path);
-          return (
-            <FileRow
-              key={child.file.path}
-              file={child.file}
-              isActive={child.file.path === activeFile}
-              isReviewed={reviewedSet.has(child.file.path)}
-              dimmed={dimmed}
-              commitFilter={commitFilter}
-              commitFile={commitFileMap.get(child.file.path)}
-              selectedForCommit={selectedForCommit}
-              onToggleFileForCommit={onToggleFileForCommit}
-            />
-          );
-        }
-        return (
-          <details key={child.name + i} className="folder" open>
-            <summary className="folder-row">
-              <span className="fold-arrow">▶</span>
-              <span className="fold-name">{child.name}</span>
-            </summary>
-            <div className="folder-contents">
-              <TreeChildren
-                children={child.children}
-                activeFile={activeFile}
-                reviewedSet={reviewedSet}
-                touchedPaths={touchedPaths}
-                commitFilter={commitFilter}
-                commitFileMap={commitFileMap}
-                selectedForCommit={selectedForCommit}
-                onToggleFileForCommit={onToggleFileForCommit}
-              />
-            </div>
-          </details>
-        );
-      })}
-    </>
-  );
-}
-
-function FileRow({
-  file,
-  isActive,
-  isReviewed,
-  dimmed = false,
-  commitFilter = null,
-  commitFile,
-  selectedForCommit,
-  onToggleFileForCommit,
-}: {
-  file: OrderedFile;
-  isActive: boolean;
-  isReviewed: boolean;
-  dimmed?: boolean;
-  commitFilter?: string | null;
-  commitFile?: CommitFile;
-  selectedForCommit?: Set<string>;
-  onToggleFileForCommit?: (path: string) => void;
-}) {
-  const status = normalizeFileStatus(file);
-  const { icon, colorClass } = cfStatusIcon(status);
-  const fileName = file.path.split('/').pop() ?? file.path;
-  const handleClick = () => {
-    if (commitFilter && commitFile) {
-      postMessage({
-        type: 'openCommitFile',
-        sha: commitFilter,
-        path: commitFile.path,
-        beforePath: commitFile.beforePath,
-      });
-    } else if (!commitFilter) {
-      postMessage({ type: 'openFile', path: file.path });
-    }
-  };
-  return (
-    <div
-      className={`file-row${isActive ? ' active' : ''}${isReviewed ? ' reviewed' : ''}${dimmed ? ' cf-file-dimmed' : ''}`}
-      data-path={file.path}
-      onClick={dimmed ? undefined : handleClick}
-    >
-      {selectedForCommit ? (
-        <input
-          type="checkbox"
-          className="commit-check"
-          title="Include in commit"
-          checked={selectedForCommit.has(file.path)}
-          onChange={(e) => {
-            e.stopPropagation();
-            onToggleFileForCommit?.(file.path);
-          }}
-          onClick={(e) => e.stopPropagation()}
-        />
-      ) : (
-        <input
-          type="checkbox"
-          className="review-check"
-          title="Mark as reviewed"
-          checked={isReviewed}
-          onChange={(e) => {
-            e.stopPropagation();
-            postMessage({ type: 'toggleReviewed', path: file.path });
-          }}
-          onClick={(e) => e.stopPropagation()}
-        />
-      )}
-      <span className={`status-icon ${colorClass}`} title={status}>
-        {icon}
-      </span>
-      <span className="cf-file-name">{fileName}</span>
-      <span className="cf-stats">
-        {(commitFile?.additions ?? file.additions) > 0 && (
-          <span className="cf-adds">+{commitFile?.additions ?? file.additions}</span>
-        )}
-        {(commitFile?.deletions ?? file.deletions) > 0 && (
-          <span className="cf-dels">-{commitFile?.deletions ?? file.deletions}</span>
-        )}
-      </span>
-    </div>
   );
 }
 

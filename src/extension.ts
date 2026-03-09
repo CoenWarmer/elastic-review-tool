@@ -277,16 +277,55 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   prPanelProvider.onCreatePr = () => {
     const branch = prPanelProvider.currentBranch;
-    const repo = vscode.workspace
-      .getConfiguration('elastic-pr-reviewer')
-      .get<string>('repo', 'elastic/kibana');
-    if (branch) {
-      void vscode.env.openExternal(
-        vscode.Uri.parse(
-          `https://github.com/${repo}/compare/${encodeURIComponent(branch)}?expand=1`
-        )
-      );
-    }
+    const cwd = workspaceRoot;
+    if (!branch || !cwd) return;
+
+    void vscode.window
+      .withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `Pushing branch ${branch}…` },
+        async () => {
+          const execP = promisify(execFile);
+
+          // Determine which remote to push to (use existing tracking remote, fall back to 'origin').
+          let remote = 'origin';
+          try {
+            const { stdout } = await execP(
+              'git',
+              ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
+              { cwd, encoding: 'utf8' }
+            );
+            remote = stdout.trim().split('/')[0] || 'origin';
+          } catch {
+            // No tracking branch yet — default to origin.
+          }
+
+          // Get the remote URL and parse the GitHub owner/repo from it.
+          const { stdout: remoteUrl } = await execP('git', ['remote', 'get-url', remote], {
+            cwd,
+            encoding: 'utf8',
+          });
+          const url = remoteUrl.trim();
+          const ownerRepo =
+            url.match(/git@github\.com:(.+?)(?:\.git)?$/)?.[1] ??
+            url.match(/https?:\/\/github\.com\/(.+?)(?:\.git)?$/)?.[1];
+          if (!ownerRepo)
+            throw new Error(`Could not parse GitHub URL from remote "${remote}": ${url}`);
+
+          // Push the branch, setting the upstream tracking ref.
+          await execP('git', ['push', '-u', remote, branch], { cwd, encoding: 'utf8' });
+
+          // Open GitHub's PR creation page for this fork branch.
+          void vscode.env.openExternal(
+            vscode.Uri.parse(
+              `https://github.com/${ownerRepo}/compare/${encodeURIComponent(branch)}?expand=1`
+            )
+          );
+        }
+      )
+      .then(undefined, (err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        void vscode.window.showErrorMessage(`Failed to push branch: ${msg}`);
+      });
   };
 
   prPanelProvider.onCommitFiles = (files, message) => {

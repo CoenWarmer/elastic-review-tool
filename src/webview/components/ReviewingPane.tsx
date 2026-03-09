@@ -119,11 +119,10 @@ export function ReviewingPane({
       <div className="reviewing-content">
         <div className="reviewing-empty">
           <p>
-            You&apos;re on branch <code>{currentBranch ?? 'unknown'}</code> which doesn&apos;t look
-            like it&apos;s part of a PR by another author.
+            You&apos;re on <code>{currentBranch ?? 'unknown'}</code>. Ready to open a PR when you are.
           </p>
         </div>
-        <div id="files-section" className="section">
+        <div id="files-section" className="section last">
           <FilesSection
             files={cfFiles}
             activeFile={cfActiveFile}
@@ -141,60 +140,68 @@ export function ReviewingPane({
             commitFilterLoading={cfCommitFilterLoading}
             selectedForCommit={selectedForCommit}
             onToggleFileForCommit={toggleFileForCommit}
+            onSelectAllFilesForCommit={(paths, select) => {
+              setSelectedForCommit(select ? new Set(paths) : new Set());
+            }}
           />
         </div>
-        <div id="action-section" className="section">
-          {commitDialogOpen ? (
-            <div className="commit-dialog">
-              <textarea
-                ref={commitMsgRef}
-                className="commit-msg-input"
-                placeholder="Commit message…"
-                value={commitMsg}
-                rows={3}
-                onChange={(e) => setCommitMsg(e.target.value)}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitCommit();
-                  if (e.key === 'Escape') setCommitDialogOpen(false);
-                }}
-              />
-              <div className="commit-dialog-actions">
+        {cfIsLoading ? null : (
+          <div id="action-section" className="section">
+            {commitDialogOpen ? (
+              <div className="commit-dialog">
+                <textarea
+                  ref={commitMsgRef}
+                  className="commit-msg-input"
+                  placeholder="Commit message…"
+                  value={commitMsg}
+                  rows={3}
+                  onChange={(e) => setCommitMsg(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitCommit();
+                    if (e.key === 'Escape') setCommitDialogOpen(false);
+                  }}
+                />
+                <div className="commit-dialog-actions">
+                  <button
+                    className="commit-dialog-submit"
+                    disabled={!commitMsg.trim() || selectedForCommit.size === 0}
+                    onClick={submitCommit}
+                    title="Commit selected files (⌘↵)"
+                  >
+                    Commit {selectedForCommit.size} file{selectedForCommit.size !== 1 ? 's' : ''}
+                  </button>
+                  <button
+                    className="commit-dialog-cancel"
+                    onClick={() => setCommitDialogOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="my-branch-actions">
                 <button
-                  className="commit-dialog-submit"
-                  disabled={!commitMsg.trim() || selectedForCommit.size === 0}
-                  onClick={submitCommit}
-                  title="Commit selected files (⌘↵)"
+                  className="my-branch-commit-btn"
+                  disabled={selectedForCommit.size === 0}
+                  title={
+                    selectedForCommit.size === 0
+                      ? 'Select files to commit'
+                      : `Commit ${selectedForCommit.size} selected file${selectedForCommit.size !== 1 ? 's' : ''}`
+                  }
+                  onClick={openCommitDialog}
                 >
-                  Commit {selectedForCommit.size} file{selectedForCommit.size !== 1 ? 's' : ''}
+                  📝 Commit {selectedForCommit.size > 0 ? `${selectedForCommit.size} ` : ''}files
                 </button>
-                <button className="commit-dialog-cancel" onClick={() => setCommitDialogOpen(false)}>
-                  Cancel
+                <button
+                  className="my-branch-create-pr-btn"
+                  onClick={() => postMessage({ type: 'createPr' })}
+                >
+                  ⭐️ Push and create PR
                 </button>
               </div>
-            </div>
-          ) : (
-            <div className="my-branch-actions">
-              <button
-                className="my-branch-commit-btn"
-                disabled={selectedForCommit.size === 0}
-                title={
-                  selectedForCommit.size === 0
-                    ? 'Select files to commit'
-                    : `Commit ${selectedForCommit.size} selected file${selectedForCommit.size !== 1 ? 's' : ''}`
-                }
-                onClick={openCommitDialog}
-              >
-                Commit {selectedForCommit.size > 0 ? `${selectedForCommit.size} ` : ''}files
-              </button>
-              <button
-                className="my-branch-create-pr-btn"
-                onClick={() => postMessage({ type: 'createPr' })}
-              >
-                Create PR ↗
-              </button>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
