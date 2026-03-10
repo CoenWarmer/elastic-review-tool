@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.19] - 2026-03-04
+
+### Added
+- **New commits indicator on PR cards**: PR cards in the Review Queue now show a small amber dot when new commits have been pushed since the last time you opened that PR. Hovering the dot shows a "New commits added" tooltip. The dot disappears once you click the card. Works across all queue buckets (Unreviewed, In review, Approved) and persists across sessions via `localStorage`
+
+### Changed
+- **"My Branch" description updated**: the message shown when on a local branch without an open PR now reads "Compared to upstream main, these are your committed changed files:" to more accurately describe what the file list represents
+
+---
+
 ## [0.1.18] - 2026-03-10
 
 ### Fixed
