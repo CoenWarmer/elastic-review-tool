@@ -1069,6 +1069,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
       await this.githubService.postComment(prNumber, body);
       void this.view?.webview.postMessage({ type: 'commentPosted' });
       void vscode.window.showInformationMessage(`Comment posted on PR #${prNumber}.`);
+      this.githubService.invalidateDetailCache(prNumber);
       void this.fetchAndUpdateDetail(prNumber);
     } catch (err) {
       void vscode.window.showErrorMessage(
@@ -1087,6 +1088,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
       await this.githubService.submitReview(prNumber, event, body);
       void this.view?.webview.postMessage({ type: 'reviewSubmitted', event });
       void vscode.window.showInformationMessage(`${label} submitted on PR #${prNumber}.`);
+      this.githubService.invalidateDetailCache(prNumber);
       void this.fetchAndUpdateDetail(prNumber);
     } catch (err) {
       void vscode.window.showErrorMessage(
