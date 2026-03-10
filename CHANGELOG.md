@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16] - 2026-03-10
+
+### Fixed
+- **Clicking a PR in the Review Queue no longer switches tabs**: `postMessage` was missing its import in `PRCard`, causing every click to fall through to the browser's native `window.postMessage` instead of the VS Code API — the extension never received the `selectPR` message and the tab never switched
+
+---
+
 ## [0.1.15] - 2026-03-10
 
 ### Changed
