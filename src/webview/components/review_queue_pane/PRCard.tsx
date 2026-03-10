@@ -1,5 +1,6 @@
 import type { GhPullRequest } from '../../types';
 import { ageLabel } from '../../utils';
+import { postMessage } from '../../vscode';
 
 const STATE_ICON: Record<string, string> = {
   APPROVED: '✅',
