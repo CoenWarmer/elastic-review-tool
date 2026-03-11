@@ -270,8 +270,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   // Wire up file clicks in the Changed Files webview → open diff command
-  changedFilesProvider.onOpenFile = (file, prNumber, baseCommit) => {
-    void vscode.commands.executeCommand('elastic-pr-reviewer.openDiff', file, prNumber, baseCommit);
+  changedFilesProvider.onOpenFile = (file, prNumber, baseCommit, line) => {
+    void vscode.commands.executeCommand(
+      'elastic-pr-reviewer.openDiff',
+      file,
+      prNumber,
+      baseCommit,
+      line
+    );
   };
 
   // Wire up owned-by-me toggle from the webview toolbar
@@ -573,7 +579,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'elastic-pr-reviewer.openDiff',
-      async (fileOrItem: OrderedFile | undefined, prNumber?: number, baseCommit?: string) => {
+      async (
+        fileOrItem: OrderedFile | undefined,
+        prNumber?: number,
+        baseCommit?: string,
+        line?: number
+      ) => {
         let file: OrderedFile;
         let pr: number;
         let base: string;
@@ -589,6 +600,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         await openDiff(file, pr, base);
         changedFilesProvider.setActiveFile(file.path);
+
+        if (typeof line === 'number' && line > 0) {
+          // Brief delay for the diff editor to fully initialise
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          const editor = vscode.window.activeTextEditor;
+          if (editor) {
+            const pos = new vscode.Position(Math.max(0, line - 1), 0);
+            editor.revealRange(
+              new vscode.Range(pos, pos),
+              vscode.TextEditorRevealType.InCenter
+            );
+            editor.selection = new vscode.Selection(pos, pos);
+          }
+        }
       }
     )
   );

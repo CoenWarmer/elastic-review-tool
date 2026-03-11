@@ -4,6 +4,7 @@ import { extractBuildkiteSummary } from '../../utils';
 import { MarkdownBody } from '../MarkdownBody';
 import { FilesSection } from './FilesSection';
 import { DiscussionSection } from './DiscussionSection';
+import { CodeRabbitSection } from '../CodeRabbitSection';
 import type { AppState } from '../../types';
 import { DevEnvPanel } from './DevEnvPanel';
 import { SectionNavBar } from './SectionNavBar';
@@ -13,6 +14,7 @@ export type ReviewingPaneProps = Pick<
   AppState,
   | 'currentPr'
   | 'discussionComments'
+  | 'codeRabbitIssues'
   | 'checkoutBusy'
   | 'checkoutStage'
   | 'cfFiles'
@@ -69,6 +71,7 @@ export function ReviewingPane({
   myBranchBaseRef: _myBranchBaseRef,
   myBranchCommits,
   discussionComments,
+  codeRabbitIssues,
   repo,
   synthtraceScenarios,
 }: ReviewingPaneProps) {
@@ -269,6 +272,11 @@ export function ReviewingPane({
           commitFilterLoading={cfCommitFilterLoading}
         />
       </div>
+      {codeRabbitIssues.length > 0 && (
+        <div className="section">
+          <CodeRabbitSection issues={codeRabbitIssues} />
+        </div>
+      )}
       <div id="discussion-section" className="section">
         <DiscussionSection
           comments={discussionComments}

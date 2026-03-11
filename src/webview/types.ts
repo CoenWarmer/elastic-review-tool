@@ -63,6 +63,17 @@ export interface GhDiscussionComment {
   commitSha?: string;
 }
 
+export interface CodeRabbitIssue {
+  category: string;
+  severity: string;
+  severityIcon: string;
+  severityOrder: number;
+  title: string;
+  body: string;
+  filePath: string;
+  line: number;
+}
+
 export interface OrderedFile {
   path: string;
   additions: number;
@@ -113,6 +124,7 @@ export interface AppState {
   // Reviewing pane
   currentPr: GhPullRequest | null;
   discussionComments: GhDiscussionComment[];
+  codeRabbitIssues: CodeRabbitIssue[];
   checkoutBusy: boolean;
   checkoutStage: string;
 
@@ -177,7 +189,7 @@ export type InboundMessage =
   | { type: 'postComment'; body: string }
   | { type: 'approveReview'; body: string }
   | { type: 'requestChanges'; body: string }
-  | { type: 'openFile'; path: string }
+  | { type: 'openFile'; path: string; line?: number }
   | { type: 'toggleReviewed'; path: string }
   | { type: 'toggleOwnedByMe' }
   | { type: 'suggestOrder' }
