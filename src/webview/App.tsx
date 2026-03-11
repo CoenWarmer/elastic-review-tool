@@ -19,6 +19,7 @@ const initialState: AppState = {
   activeTab: 'queue',
   currentPr: null,
   discussionComments: [],
+  codeRabbitIssues: [],
   checkoutBusy: false,
   checkoutStage: '',
   cfFiles: [],
@@ -176,6 +177,7 @@ export function App() {
           isKibanaRepo={isKibanaRepo}
           currentPr={state.currentPr}
           discussionComments={state.discussionComments}
+          codeRabbitIssues={state.codeRabbitIssues}
           checkoutBusy={state.checkoutBusy}
           checkoutStage={state.checkoutStage}
           cfFiles={state.cfFiles}

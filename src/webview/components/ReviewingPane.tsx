@@ -5,6 +5,7 @@ import { ageLabel, extractBuildkiteSummary, isBot, type BuildkiteSummaryItem } f
 import { MarkdownBody } from './MarkdownBody';
 import { FilesSection } from './FilesSection';
 import { DiscussionSection } from './DiscussionSection';
+import { CodeRabbitSection } from './CodeRabbitSection';
 import type { AppState, GhPullRequest, GhPrFile, TeamReviewInfo } from '../types';
 import { ActionSection } from './ActionSection';
 import { Spinner } from './Spinner';
@@ -13,6 +14,7 @@ type ReviewingPaneProps = Pick<
   AppState,
   | 'currentPr'
   | 'discussionComments'
+  | 'codeRabbitIssues'
   | 'checkoutBusy'
   | 'checkoutStage'
   | 'cfFiles'
@@ -69,6 +71,7 @@ export function ReviewingPane({
   myBranchBaseRef,
   myBranchCommits,
   discussionComments,
+  codeRabbitIssues,
   repo,
   synthtraceScenarios,
 }: ReviewingPaneProps) {
@@ -246,6 +249,11 @@ export function ReviewingPane({
           commitFilterLoading={cfCommitFilterLoading}
         />
       </div>
+      {codeRabbitIssues.length > 0 && (
+        <div className="section">
+          <CodeRabbitSection issues={codeRabbitIssues} />
+        </div>
+      )}
       <div className="section">
         <DiscussionSection
           comments={discussionComments}

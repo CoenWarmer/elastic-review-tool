@@ -1,7 +1,12 @@
 import * as vscode from 'vscode';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import type { GitHubService, GhPullRequest, GhDiscussionComment } from '../services/github_service';
+import type {
+  GitHubService,
+  GhPullRequest,
+  GhDiscussionComment,
+  GhPRLineComment,
+} from '../services/github_service';
 import type { CodeOwnersService } from '../services/codeowners_service';
 import type { OrderedFile } from '../services/file_ordering_service';
 import { sortAndGroupFiles } from '../services/file_ordering_service';
@@ -22,7 +27,7 @@ type InboundMessage =
   | { type: 'postComment'; body: string }
   | { type: 'approveReview'; body: string }
   | { type: 'requestChanges'; body: string }
-  | { type: 'openFile'; path: string }
+  | { type: 'openFile'; path: string; line?: number }
   | { type: 'toggleReviewed'; path: string }
   | { type: 'toggleOwnedByMe' }
   | { type: 'suggestOrder' }
@@ -38,6 +43,169 @@ type InboundMessage =
   | { type: 'openCommitFile'; sha: string; path: string; beforePath?: string }
   | { type: 'createPr' }
   | { type: 'commitFiles'; files: string[]; message: string };
+
+// ─── CodeRabbit issue parsing ──────────────────────────────────────────────────
+
+interface CodeRabbitIssue {
+  category: string;
+  severity: string;
+  severityIcon: string;
+  severityOrder: number;
+  title: string;
+  body: string;
+  filePath: string;
+  line: number;
+}
+
+const CODERABBIT_LOGINS = new Set(['coderabbitai[bot]', 'coderabbitai']);
+
+const SEVERITY_ORDER: Record<string, number> = {
+  Critical: 0,
+  Major: 1,
+  Medium: 2,
+  Minor: 3,
+  Nitpick: 4,
+};
+
+const CLASSIFICATION_RE =
+  /[_*]*(?:⚠️|🧹|🐛|💡|🔒|♻️)\s*([^_*|]+)\s*[_*]*\s*\|\s*[_*]*(?:🔴|🟠|🟡|🟢|⚪)\s*([^_*\n]+)\s*[_*]*/;
+
+const SEVERITY_ICON: Record<string, string> = {
+  Critical: '\u{1F534}',
+  Major: '\u{1F7E0}',
+  Medium: '\u{1F7E1}',
+  Minor: '\u{1F7E2}',
+  Nitpick: '\u{1F9F9}',
+};
+
+/** Parse inline line comments posted by CodeRabbit (actionable issues). */
+function parseCodeRabbitLineIssues(comments: GhPRLineComment[]): CodeRabbitIssue[] {
+  const issues: CodeRabbitIssue[] = [];
+
+  for (const c of comments) {
+    if (!CODERABBIT_LOGINS.has(c.user.login)) continue;
+    if (c.in_reply_to_id) continue;
+
+    const body = c.body;
+    const classMatch = body.match(CLASSIFICATION_RE);
+
+    let category = '';
+    let severity = '';
+    let severityIcon = '';
+    let severityOrder = 99;
+
+    if (classMatch) {
+      category = classMatch[1].trim();
+      severity = classMatch[2].trim();
+      severityIcon = SEVERITY_ICON[severity] ?? '\u26AA';
+      severityOrder = SEVERITY_ORDER[severity] ?? 99;
+    } else if (body.includes('\u{1F9F9}') || /Nitpick/i.test(body.slice(0, 80))) {
+      category = 'Nitpick';
+      severity = 'Nitpick';
+      severityIcon = '\u{1F9F9}';
+      severityOrder = SEVERITY_ORDER.Nitpick;
+    } else {
+      continue;
+    }
+
+    const titleMatch = body.match(/\*\*([^*]+)\*\*/);
+    const title = titleMatch?.[1]?.trim() ?? '';
+
+    issues.push({
+      category,
+      severity,
+      severityIcon,
+      severityOrder,
+      title,
+      body,
+      filePath: c.path,
+      line: c.line ?? c.original_line ?? 1,
+    });
+  }
+
+  return issues;
+}
+
+/**
+ * Parse nitpick items embedded in CodeRabbit review body comments.
+ * These are NOT posted as inline line comments — they only appear in the
+ * review summary markdown as blockquoted items under "🧹 Nitpick comments".
+ */
+function parseCodeRabbitReviewNitpicks(comments: GhDiscussionComment[]): CodeRabbitIssue[] {
+  const issues: CodeRabbitIssue[] = [];
+
+  for (const c of comments) {
+    if (!CODERABBIT_LOGINS.has(c.author)) continue;
+    if (c.kind !== 'review') continue;
+
+    const body = c.body;
+    if (!body.includes('Nitpick')) continue;
+
+    // Extract the nitpick section (between "Nitpick" header and next major section)
+    const nitpickStart = body.indexOf('Nitpick');
+    if (nitpickStart === -1) continue;
+    const sectionEnd = body.indexOf('**Actionable', nitpickStart);
+    const promptEnd = body.indexOf('Prompt for', nitpickStart);
+    const reviewEnd = body.indexOf('Review info', nitpickStart);
+    const ends = [sectionEnd, promptEnd, reviewEnd].filter((i) => i > nitpickStart);
+    const end = ends.length > 0 ? Math.min(...ends) : body.length;
+    const section = body.slice(nitpickStart, end);
+
+    // Track current file path as we scan through blockquoted lines
+    let currentFile = '';
+    const fileRe = /^>\s+([\w@/.{}\-]+\.\w+)\s+\(\d+\)/gm;
+    const itemRe = /^>\s*>\s*`(\d+)(?:-(\d+))?`:\s*\*\*([^*]+)\*\*/gm;
+
+    // Collect file paths with their positions
+    const filePaths: Array<{ path: string; index: number }> = [];
+    let fm: RegExpExecArray | null;
+    while ((fm = fileRe.exec(section)) !== null) {
+      filePaths.push({ path: fm[1], index: fm.index });
+    }
+
+    // Collect items and assign to nearest preceding file path
+    let im: RegExpExecArray | null;
+    while ((im = itemRe.exec(section)) !== null) {
+      for (const fp of filePaths) {
+        if (fp.index < im.index) currentFile = fp.path;
+      }
+      if (!currentFile) continue;
+
+      const startLine = parseInt(im[1], 10);
+      const title = im[3].trim();
+
+      issues.push({
+        category: 'Nitpick',
+        severity: 'Nitpick',
+        severityIcon: SEVERITY_ICON.Nitpick,
+        severityOrder: SEVERITY_ORDER.Nitpick,
+        title,
+        body: '',
+        filePath: currentFile,
+        line: startLine,
+      });
+    }
+  }
+
+  return issues;
+}
+
+/** Merge issues from inline comments and review body nitpicks, deduplicated and sorted. */
+function parseAllCodeRabbitIssues(
+  lineComments: GhPRLineComment[],
+  discussionComments: GhDiscussionComment[]
+): CodeRabbitIssue[] {
+  const fromLines = parseCodeRabbitLineIssues(lineComments);
+  const fromReviews = parseCodeRabbitReviewNitpicks(discussionComments);
+
+  // Deduplicate by filePath + line + title (review body items that also appear as inline comments)
+  const seen = new Set(fromLines.map((i) => `${i.filePath}:${i.line}:${i.title}`));
+  const unique = fromReviews.filter((i) => !seen.has(`${i.filePath}:${i.line}:${i.title}`));
+
+  const all = [...fromLines, ...unique];
+  all.sort((a, b) => a.severityOrder - b.severityOrder);
+  return all;
+}
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
@@ -59,6 +227,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
   // Description state
   currentPr?: GhPullRequest;
   private discussionComments: GhDiscussionComment[] = [];
+  private codeRabbitIssues: CodeRabbitIssue[] = [];
 
   // Tab state — tracked server-side so re-renders don't reset the tab
   private activeTab: 'queue' | 'reviewing' = 'queue';
@@ -157,7 +326,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
   readonly onDidSetFiles = this._onDidSetFiles.event;
 
   /** Fired when the user clicks a file row in the Changed Files tab. */
-  onOpenFile?: (file: OrderedFile, prNumber: number, baseCommit: string) => void;
+  onOpenFile?: (file: OrderedFile, prNumber: number, baseCommit: string, line?: number) => void;
 
   /** Fired when the user clicks the "Owned by me" toggle. */
   onToggleOwnedByMe?: () => void;
@@ -210,7 +379,12 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
           if (pr) {
             this.currentPr = pr;
             this.activeTab = 'reviewing';
-            this.sendState({ currentPr: pr, activeTab: 'reviewing', discussionComments: [] });
+            this.sendState({
+              currentPr: pr,
+              activeTab: 'reviewing',
+              discussionComments: [],
+              codeRabbitIssues: [],
+            });
             this.onSelectPR?.(pr);
             void this.fetchAndUpdateDetail(pr.number);
           }
@@ -277,7 +451,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
           const file = this.cfFiles.find((f) => f.path === msg.path);
           if (file && this.cfPrNumber !== null) {
             this.cfActiveFile = msg.path;
-            this.onOpenFile?.(file, this.cfPrNumber, this.cfBaseCommit);
+            this.onOpenFile?.(file, this.cfPrNumber, this.cfBaseCommit, msg.line);
           }
           break;
         }
@@ -641,6 +815,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
     this.myBranchBaseRef = null;
     this.myBranchCommits = [];
     this.discussionComments = [];
+    this.codeRabbitIssues = [];
     this.sendState({
       currentPr: null,
       activeTab: 'queue',
@@ -660,6 +835,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
       myBranchBaseRef: null,
       myBranchCommits: [],
       discussionComments: [],
+      codeRabbitIssues: [],
     });
   }
 
@@ -683,6 +859,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
     this.cfOrderMode = 'default';
     this.cfIsOrderLoading = false;
     this.discussionComments = [];
+    this.codeRabbitIssues = [];
     this.sendState();
   }
 
@@ -874,17 +1051,23 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
 
   // ─── Private helpers ─────────────────────────────────────────────────────────
 
-  /** Fetches full PR detail + discussion comments, then sends updated state. */
+  /** Fetches full PR detail + discussion comments + CodeRabbit issues, then sends updated state. */
   private async fetchAndUpdateDetail(prNumber: number): Promise<void> {
     try {
-      const [detail, comments] = await Promise.all([
+      const [detail, comments, lineComments] = await Promise.all([
         this.githubService.getPullRequestDetail(prNumber),
         this.githubService.getDiscussionComments(prNumber).catch(() => [] as GhDiscussionComment[]),
+        this.githubService.getLineComments(prNumber).catch(() => [] as GhPRLineComment[]),
       ]);
       if (this.currentPr?.number === prNumber) {
         this.currentPr = detail;
         this.discussionComments = comments;
-        this.sendState({ currentPr: detail, discussionComments: comments });
+        this.codeRabbitIssues = parseAllCodeRabbitIssues(lineComments, comments);
+        this.sendState({
+          currentPr: detail,
+          discussionComments: comments,
+          codeRabbitIssues: this.codeRabbitIssues,
+        });
 
         // Compute ownership for the preview file list so the bar appears even
         // before checkout. Skip if already computed (e.g. branch is checked out).
@@ -945,6 +1128,7 @@ export class PrPanelProvider implements vscode.WebviewViewProvider {
       activeTab: this.activeTab,
       currentPr: this.currentPr ?? null,
       discussionComments: this.discussionComments,
+      codeRabbitIssues: this.codeRabbitIssues,
       checkoutBusy: this.checkoutBusy,
       checkoutStage: this.checkoutStage,
       cfFiles: this.cfFiles,
